@@ -90,7 +90,7 @@ const DEFAULT_PROJECTS = [
     "stage": "MVP",
     "nextAction": "Add tagline, tech stack and live URL",
     "stack": [],
-    "liveUrl": "",
+    "liveUrl": "https://alpizesolution.github.io/apptracker/",
     "repoUrl": "https://github.com/alpizesolution/apptracker",
     "manualProgress": null,
     "milestones": [
@@ -461,6 +461,11 @@ function loadData() {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       projects = JSON.parse(stored);
+      // Fill live URLs added to the seed list after this browser first saved it.
+      DEFAULT_PROJECTS.forEach(seed => {
+        const match = projects.find(p => p.repoUrl === seed.repoUrl);
+        if (match && !match.liveUrl && seed.liveUrl) match.liveUrl = seed.liveUrl;
+      });
     } else {
       projects = JSON.parse(JSON.stringify(DEFAULT_PROJECTS));
       saveData();
@@ -712,8 +717,8 @@ function renderProjectCard(project, isCompact = false) {
       </div>
 
       <!-- Card Bottom Links -->
-      <div class="mt-5 pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
-        <div class="flex items-center gap-3">
+      <div class="mt-5 pt-3 border-t border-slate-800/60 flex items-center justify-between gap-2 text-xs text-slate-400">
+        <div class="flex items-center gap-x-3 gap-y-1 flex-wrap min-w-0">
           ${project.repoUrl ? `
             <a href="${escapeHtml(project.repoUrl)}" target="_blank" rel="noopener noreferrer" class="hover:text-white flex items-center gap-1 transition">
               <i class="ph-bold ph-git-branch text-sm text-indigo-400"></i>
@@ -726,7 +731,12 @@ function renderProjectCard(project, isCompact = false) {
               <i class="ph-bold ph-arrow-square-out text-sm"></i>
               <span>Live App</span>
             </a>
-          ` : ''}
+          ` : `
+            <button onclick="setLiveUrl('${project.id}')" title="Add the live website link" class="text-slate-500 hover:text-emerald-400 flex items-center gap-1 whitespace-nowrap transition">
+              <i class="ph-bold ph-globe text-sm"></i>
+              <span>Add Live</span>
+            </button>
+          `}
 
           <button onclick="openLogins('${project.id}')" title="Saved logins for this app" class="hover:text-white flex items-center gap-1 transition">
             <i class="ph-bold ph-key text-sm text-amber-400"></i>
@@ -1017,6 +1027,18 @@ function saveProject(e) {
   saveData();
   render();
   closeModal();
+}
+
+function setLiveUrl(id) {
+  const proj = projects.find(p => p.id === id);
+  if (!proj) return;
+  let url = (prompt(`Live website link for "${proj.name}"`, 'https://') || '').trim();
+  if (!url || url === 'https://') return;
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  proj.liveUrl = url;
+  saveData();
+  render();
+  showToast(`Live link added to "${proj.name}"`);
 }
 
 function deleteProject(id) {
@@ -1362,7 +1384,31 @@ function deleteLogin(loginId) {
 }
 
 /* ==========================================================================
-   14. Utilities & Toast System
+   14. Light / Dark Theme
+   ========================================================================== */
+const THEME_KEY = 'alpize_solution_theme';
+
+function applyTheme(theme) {
+  const root = document.documentElement;
+  root.classList.remove('dark', 'light');
+  root.classList.add(theme);
+  document.querySelector('meta[name="theme-color"]').setAttribute('content', theme === 'light' ? '#f8fafc' : '#0f172a');
+  const icon = document.getElementById('themeToggleIcon');
+  const btn = document.getElementById('themeToggleBtn');
+  if (icon) icon.className = `ph-bold ${theme === 'light' ? 'ph-moon' : 'ph-sun'} text-lg`;
+  if (btn) btn.title = theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme';
+}
+
+function toggleTheme() {
+  const next = document.documentElement.classList.contains('light') ? 'dark' : 'light';
+  applyTheme(next);
+  try {
+    localStorage.setItem(THEME_KEY, next);
+  } catch (e) {}
+}
+
+/* ==========================================================================
+   15. Utilities & Toast System
    ========================================================================== */
 let toastTimer;
 function showToast(msg) {
@@ -1395,6 +1441,7 @@ window.addEventListener('keydown', (e) => {
 
 window.onload = function() {
   updateNetworkStatus();
+  applyTheme(document.documentElement.classList.contains('light') ? 'light' : 'dark');
   loadData();
 };
   
