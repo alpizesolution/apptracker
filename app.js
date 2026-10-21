@@ -561,7 +561,7 @@ function render() {
       const matchDesc = (p.desc || '').toLowerCase().includes(q);
       const matchAction = (p.nextAction || '').toLowerCase().includes(q);
       const matchPlatform = (p.platform || '').toLowerCase().includes(q);
-      const matchStack = (p.stack || []).some(s => s.toLowerCase().includes(q));
+      const matchStack = allTech(p).some(t => t.value.toLowerCase().includes(q));
       return matchName || matchDesc || matchAction || matchPlatform || matchStack;
     }
     return true;
@@ -607,7 +607,7 @@ function renderProjectCard(project) {
     </li>
   `).join('');
 
-  const stackHtml = (project.stack || []).map(tag => `<span class="chip chip-mono">${escapeHtml(tag)}</span>`).join('');
+  const stackHtml = allTech(project).map(t => `<span class="chip tech-chip tech-${t.key}" title="${t.label}"><small>${t.short}</small>${escapeHtml(t.value)}</span>`).join('');
 
   return `
     <article class="card ${stage.tile}">
@@ -809,6 +809,7 @@ function openModal(isEdit = false) {
     document.getElementById('projectForm').reset();
     document.getElementById('projectId').value = '';
     title.innerHTML = '<i class="ph-bold ph-plus-circle"></i> New app';
+    setFormTech({});
   }
   modal.classList.remove('hidden');
   document.getElementById('formName').focus();
@@ -828,7 +829,7 @@ function editProject(id) {
   document.getElementById('formDesc').value = proj.desc || '';
   document.getElementById('formStage').value = proj.stage || 'Idea';
   document.getElementById('formAction').value = proj.nextAction || '';
-  document.getElementById('formStack').value = (proj.stack || []).join(', ');
+  setFormTech(projectTech(proj));
   document.getElementById('formLiveUrl').value = proj.liveUrl || '';
   document.getElementById('formRepoUrl').value = proj.repoUrl || '';
   document.getElementById('formManualProgress').value = proj.manualProgress !== null && proj.manualProgress !== undefined ? proj.manualProgress : '';
@@ -861,12 +862,15 @@ function saveProject(e) {
   const desc = document.getElementById('formDesc').value.trim();
   const stage = document.getElementById('formStage').value;
   const nextAction = document.getElementById('formAction').value.trim();
-  const rawStack = document.getElementById('formStack').value;
   const liveUrl = document.getElementById('formLiveUrl').value.trim();
   const repoUrl = document.getElementById('formRepoUrl').value.trim();
   const rawProgress = document.getElementById('formManualProgress').value;
   
-  const stack = rawStack.split(',').map(s => s.trim()).filter(Boolean);
+  commitPendingTech();
+  const tech = JSON.parse(JSON.stringify(formTech));
+  // "Other" tools stay in `stack` so older backups and code keep working.
+  const stack = tech.other || [];
+  delete tech.other;
   const manualProgress = rawProgress === '' ? null : parseInt(rawProgress, 10);
 
   if (id) {
@@ -879,6 +883,7 @@ function saveProject(e) {
         desc,
         stage,
         nextAction,
+        tech,
         stack,
         liveUrl,
         repoUrl,
@@ -894,6 +899,7 @@ function saveProject(e) {
       desc,
       stage,
       nextAction,
+      tech,
       stack,
       liveUrl,
       repoUrl,
@@ -909,6 +915,188 @@ function saveProject(e) {
   saveData();
   render();
   closeModal();
+}
+
+/* ==========================================================================
+   9b. Tech Stack Fields (framework, frontend, backend...) with suggestions
+   ========================================================================== */
+const TECH_FIELDS = [
+  { key: 'framework', label: 'Framework', short: 'FW', placeholder: 'e.g. Next.js, Laravel, Flutter',
+    suggest: ['Next.js', 'Nuxt', 'SvelteKit', 'Remix', 'Astro', 'Vite', 'React', 'Vue', 'Angular', 'Svelte', 'Laravel', 'CodeIgniter', 'Symfony', 'Django', 'Flask', 'FastAPI', 'Ruby on Rails', 'Express', 'NestJS', 'Spring Boot', 'ASP.NET Core', 'Flutter', 'React Native', 'Expo', 'Ionic', 'Capacitor', 'Electron', 'Tauri', 'Gatsby', 'WordPress'] },
+  { key: 'frontend', label: 'Frontend', short: 'FE', placeholder: 'e.g. React, Tailwind CSS',
+    suggest: ['HTML/CSS', 'JavaScript', 'TypeScript', 'Vanilla JS', 'React', 'Vue', 'Angular', 'Svelte', 'SolidJS', 'Alpine.js', 'jQuery', 'Tailwind CSS', 'Bootstrap', 'Material UI', 'Chakra UI', 'shadcn/ui', 'DaisyUI', 'Sass', 'Blade', 'Livewire', 'Inertia.js', 'Flutter', 'React Native', 'Kotlin', 'Swift'] },
+  { key: 'backend', label: 'Backend', short: 'BE', placeholder: 'e.g. Node.js, Firebase',
+    suggest: ['Node.js', 'Express', 'NestJS', 'PHP', 'Laravel', 'Python', 'Django', 'Flask', 'FastAPI', 'Go', 'Java', 'Spring Boot', 'C# / .NET', 'Ruby on Rails', 'Firebase', 'Supabase', 'Appwrite', 'PocketBase', 'Convex', 'Cloudflare Workers', 'AWS Lambda', 'Serverless', 'GraphQL', 'REST API', 'None (static)'] },
+  { key: 'database', label: 'Database', short: 'DB', placeholder: 'e.g. MySQL, Firestore',
+    suggest: ['MySQL', 'PostgreSQL', 'SQLite', 'MariaDB', 'MongoDB', 'Firestore', 'Firebase Realtime DB', 'Supabase', 'Redis', 'SQL Server', 'DynamoDB', 'PlanetScale', 'Neon', 'Turso', 'localStorage', 'IndexedDB', 'Google Sheets'] },
+  { key: 'hosting', label: 'Hosting', short: 'HOST', placeholder: 'e.g. Vercel, GitHub Pages',
+    suggest: ['GitHub Pages', 'Vercel', 'Netlify', 'Firebase Hosting', 'Cloudflare Pages', 'Render', 'Railway', 'Fly.io', 'Heroku', 'AWS', 'Google Cloud', 'Azure', 'DigitalOcean', 'Hostinger', 'cPanel', 'Play Store', 'App Store'] },
+  { key: 'other', label: 'Other tools', short: '+', placeholder: 'e.g. Stripe, OpenAI',
+    suggest: ['PWA', 'Stripe', 'PayMongo', 'GCash', 'PayPal', 'Xendit', 'OpenAI', 'Claude API', 'Gemini API', 'Google Maps', 'Twilio', 'Semaphore SMS', 'Resend', 'SendGrid', 'Cloudinary', 'Firebase Auth', 'Clerk', 'Auth0', 'Docker', 'GitHub Actions', 'Figma', 'Chart.js'] }
+];
+
+let formTech = {};
+let techActive = { key: null, index: -1, items: [] };
+
+// A project's tech as { key: [values] }; older projects only have `stack`, shown as "Other tools".
+function projectTech(project) {
+  const tech = {};
+  TECH_FIELDS.forEach(f => {
+    tech[f.key] = f.key === 'other'
+      ? [...(project.stack || [])]
+      : [...((project.tech && project.tech[f.key]) || [])];
+  });
+  return tech;
+}
+
+function allTech(project) {
+  const tech = projectTech(project);
+  return TECH_FIELDS.flatMap(f => tech[f.key].map(value => ({ key: f.key, label: f.label, short: f.short, value })));
+}
+
+function setFormTech(tech) {
+  formTech = {};
+  TECH_FIELDS.forEach(f => { formTech[f.key] = [...(tech[f.key] || [])]; });
+  renderTechFields();
+}
+
+function renderTechFields() {
+  document.getElementById('techFields').innerHTML = TECH_FIELDS.map(f => `
+    <div class="tech-field">
+      <label class="tech-label tech-${f.key}" for="techInput-${f.key}">${f.label}</label>
+      <div class="tag-input" onclick="document.getElementById('techInput-${f.key}').focus()">
+        <span id="techTags-${f.key}" class="tag-list">${renderTechTags(f.key)}</span>
+        <input type="text" id="techInput-${f.key}" autocomplete="off" placeholder="${f.placeholder}"
+          role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="techSuggest-${f.key}"
+          oninput="showTechSuggestions('${f.key}')" onfocus="showTechSuggestions('${f.key}')"
+          onkeydown="handleTechKey(event, '${f.key}')" onblur="setTimeout(() => hideTechSuggestions('${f.key}'), 150)">
+      </div>
+      <ul id="techSuggest-${f.key}" class="suggest hidden" role="listbox"></ul>
+    </div>
+  `).join('');
+}
+
+function renderTechTags(key) {
+  return formTech[key].map((value, i) => `
+    <span class="tech-tag tech-${key}">${escapeHtml(value)}<button type="button" onclick="removeTech('${key}', ${i})" title="Remove ${escapeHtml(value)}">&times;</button></span>
+  `).join('');
+}
+
+function refreshTechTags(key) {
+  document.getElementById(`techTags-${key}`).innerHTML = renderTechTags(key);
+}
+
+// Suggestions: the built-in list plus anything already used in your other apps.
+function techSuggestionsFor(key, query) {
+  const used = projects.flatMap(p => projectTech(p)[key]);
+  const field = TECH_FIELDS.find(f => f.key === key);
+  const pool = [...new Set([...field.suggest, ...used])];
+  const taken = formTech[key].map(v => v.toLowerCase());
+  const q = query.trim().toLowerCase();
+  return pool
+    .filter(v => !taken.includes(v.toLowerCase()))
+    .filter(v => !q || v.toLowerCase().includes(q))
+    .sort((a, b) => {
+      if (!q) return 0;
+      const as = a.toLowerCase().startsWith(q), bs = b.toLowerCase().startsWith(q);
+      return as === bs ? 0 : as ? -1 : 1;
+    })
+    .slice(0, 8);
+}
+
+function showTechSuggestions(key) {
+  const input = document.getElementById(`techInput-${key}`);
+  const list = document.getElementById(`techSuggest-${key}`);
+  const items = techSuggestionsFor(key, input.value);
+  const typed = input.value.trim();
+  if (typed && !items.some(v => v.toLowerCase() === typed.toLowerCase())) items.push(typed);
+  techActive = { key, index: items.length ? 0 : -1, items };
+  if (items.length === 0) {
+    hideTechSuggestions(key);
+    return;
+  }
+  list.innerHTML = items.map((v, i) => `
+    <li role="option" class="${i === 0 ? 'active' : ''}" onmousedown="event.preventDefault(); addTech('${key}', ${i})">
+      ${v === typed && !techSuggestionsFor(key, typed).includes(v) ? `Add "<b>${escapeHtml(v)}</b>"` : highlightMatch(v, typed)}
+    </li>
+  `).join('');
+  list.classList.remove('hidden');
+  input.setAttribute('aria-expanded', 'true');
+}
+
+function highlightMatch(value, query) {
+  const i = query ? value.toLowerCase().indexOf(query.toLowerCase()) : -1;
+  if (i < 0) return escapeHtml(value);
+  return escapeHtml(value.slice(0, i)) + '<b>' + escapeHtml(value.slice(i, i + query.length)) + '</b>' + escapeHtml(value.slice(i + query.length));
+}
+
+function hideTechSuggestions(key) {
+  const list = document.getElementById(`techSuggest-${key}`);
+  const input = document.getElementById(`techInput-${key}`);
+  if (list) list.classList.add('hidden');
+  if (input) input.setAttribute('aria-expanded', 'false');
+  if (techActive.key === key) techActive = { key: null, index: -1, items: [] };
+}
+
+function addTech(key, index) {
+  const value = (techActive.key === key ? techActive.items[index] : null) || '';
+  addTechValue(key, value);
+}
+
+function addTechValue(key, raw) {
+  const input = document.getElementById(`techInput-${key}`);
+  const value = raw.replace(/,+$/, '').trim();
+  if (value && !formTech[key].some(v => v.toLowerCase() === value.toLowerCase())) {
+    formTech[key].push(value);
+    refreshTechTags(key);
+  }
+  input.value = '';
+  showTechSuggestions(key);
+  input.focus();
+}
+
+function removeTech(key, index) {
+  formTech[key].splice(index, 1);
+  refreshTechTags(key);
+}
+
+function handleTechKey(e, key) {
+  const input = e.target;
+  const list = document.getElementById(`techSuggest-${key}`);
+  const open = !list.classList.contains('hidden') && techActive.key === key;
+
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (!open) { showTechSuggestions(key); e.preventDefault(); return; }
+    e.preventDefault();
+    const n = techActive.items.length;
+    techActive.index = (techActive.index + (e.key === 'ArrowDown' ? 1 : -1) + n) % n;
+    [...list.children].forEach((li, i) => li.classList.toggle('active', i === techActive.index));
+  } else if ((e.key === 'Enter' || e.key === 'Tab') && input.value.trim()) {
+    e.preventDefault();
+    if (open && techActive.index >= 0) addTech(key, techActive.index);
+    else addTechValue(key, input.value);
+  } else if (e.key === ',') {
+    e.preventDefault();
+    addTechValue(key, input.value);
+  } else if (e.key === 'Backspace' && input.value === '' && formTech[key].length) {
+    removeTech(key, formTech[key].length - 1);
+  } else if (e.key === 'Escape' && open) {
+    e.stopPropagation();
+    hideTechSuggestions(key);
+  }
+}
+
+// Typed text that wasn't added yet still counts when the form is saved.
+function commitPendingTech() {
+  TECH_FIELDS.forEach(f => {
+    const input = document.getElementById(`techInput-${f.key}`);
+    if (input && input.value.trim()) {
+      input.value.split(',').map(v => v.trim()).filter(Boolean).forEach(v => {
+        if (!formTech[f.key].some(x => x.toLowerCase() === v.toLowerCase())) formTech[f.key].push(v);
+      });
+      input.value = '';
+    }
+  });
 }
 
 function setLiveUrl(id) {
