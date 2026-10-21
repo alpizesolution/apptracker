@@ -72,7 +72,7 @@
 
   <!-- Header -->
   <header class="border-b border-slate-800/80 bg-slate-900/70 backdrop-blur sticky top-0 z-30">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+    <div class="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
       
       <!-- Brand & Offline Pill -->
       <div class="flex items-center gap-3">
@@ -145,7 +145,7 @@
   </header>
 
   <!-- Main Container -->
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1">
+  <main class="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1">
     
     <!-- Aggregate Stats Strip -->
     <section class="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-6">
@@ -217,12 +217,12 @@
     </div>
 
     <!-- Active View Area -->
-    <div id="gridView" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+    <div id="gridView" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
       <!-- Injected by JS -->
     </div>
 
     <div id="kanbanView" class="hidden overflow-x-auto pb-6">
-      <div class="flex gap-4 min-w-[1100px]" id="kanbanColumnsContainer">
+      <div class="grid grid-cols-6 gap-3 min-w-[1100px]" id="kanbanColumnsContainer">
         <!-- Injected by JS -->
       </div>
     </div>
@@ -340,7 +340,7 @@
 
   <!-- Footer -->
   <footer class="border-t border-slate-900 bg-slate-950/80 py-4 text-center text-xs text-slate-500">
-    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+    <div class="max-w-[1920px] mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
       <span>&copy; ALPIZE SOLUTION &bull; Storage: <span id="storageIndicator" class="text-slate-400 font-mono">LocalStorage</span></span>
       <span class="flex items-center gap-1.5">
         <i class="ph-bold ph-shield-check text-emerald-400"></i> Offline-ready Service Worker active

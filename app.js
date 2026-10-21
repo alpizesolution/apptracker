@@ -771,7 +771,7 @@ function renderKanban(filteredProjects) {
 
     return `
       <div 
-        class="w-72 bg-slate-900/40 border border-slate-800/70 rounded-2xl p-3 flex flex-col max-h-[75vh]"
+        class="min-w-0 bg-slate-900/40 border border-slate-800/70 rounded-2xl p-3 flex flex-col max-h-[75vh]"
         ondragover="handleDragOver(event)"
         ondragleave="handleDragLeave(event)"
         ondrop="handleDrop(event, '${stage}')"
