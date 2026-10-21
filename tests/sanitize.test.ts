@@ -53,7 +53,7 @@ test('sanitizeBoard cleans a hostile backup', () => {
 });
 
 test('old array backups still import, and logins come out separately', () => {
-  const raw = [{ id: 'proj_001', name: 'DSP', stage: 'MVP', logins: [{ id: 'l1', username: 'admin@x.local', role: 'Admin', password: 'pw' }] }];
+  const raw = [{ id: 'proj_001', name: 'My App', stage: 'MVP', logins: [{ id: 'l1', username: 'admin@x.local', role: 'Admin', password: 'pw' }] }];
   assert.ok(isBackup(raw));
   assert.ok(!isBackup({ hello: 1 }));
   const board = sanitizeBoard(raw);
