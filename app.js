@@ -1,0 +1,1143 @@
+/* ==========================================================================
+   1. Service Worker Registration
+   ========================================================================== */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(() => console.log('ALPIZE SOLUTION Service Worker registered successfully.'))
+      .catch(err => console.warn('Service Worker registration note:', err));
+  });
+}
+
+// Intercept native beforeinstallprompt for PC / Mobile installation
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const installBtn = document.getElementById('pwaInstallBtn');
+  if (installBtn) {
+    installBtn.classList.remove('hidden');
+  }
+});
+
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  const installBtn = document.getElementById('pwaInstallBtn');
+  if (installBtn) installBtn.classList.add('hidden');
+  showToast("ALPIZE SOLUTION successfully installed as standalone app!");
+});
+
+function installPWA() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.then((choice) => {
+    if (choice.outcome === 'accepted') {
+      showToast("Installing ALPIZE SOLUTION PC app...");
+    }
+    deferredInstallPrompt = null;
+    document.getElementById('pwaInstallBtn').classList.add('hidden');
+  });
+}
+
+/* ==========================================================================
+   2. Online / Offline Status Engine
+   ========================================================================== */
+function updateNetworkStatus() {
+  const isOnline = navigator.onLine;
+  const badge = document.getElementById('networkStatusBadge');
+  const text = document.getElementById('networkStatusText');
+  const banner = document.getElementById('offlineBanner');
+
+  if (isOnline) {
+    badge.className = "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+    text.innerText = "Online";
+    banner.classList.add('hidden');
+  } else {
+    badge.className = "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20";
+    text.innerText = "Offline Mode";
+    banner.classList.remove('hidden');
+  }
+}
+window.addEventListener('online', () => {
+  updateNetworkStatus();
+  showToast("Back online! Connection re-established.");
+});
+window.addEventListener('offline', () => {
+  updateNetworkStatus();
+  showToast("Offline mode enabled: Local storage operational.");
+});
+
+/* ==========================================================================
+   3. Seed Data (ALPIZE SOLUTION repos) & State Management
+   ========================================================================== */
+const STAGES = ['Idea', 'Prototype', 'MVP', 'Testing/Review', 'Shipped/Live', 'Paused/Blocked'];
+
+const STAGE_CONFIG = {
+  'Idea': { color: 'border-purple-500/30 text-purple-400 bg-purple-500/10', dot: 'bg-purple-400' },
+  'Prototype': { color: 'border-blue-500/30 text-blue-400 bg-blue-500/10', dot: 'bg-blue-400' },
+  'MVP': { color: 'border-indigo-500/30 text-indigo-400 bg-indigo-500/10', dot: 'bg-indigo-400' },
+  'Testing/Review': { color: 'border-amber-500/30 text-amber-400 bg-amber-500/10', dot: 'bg-amber-400' },
+  'Shipped/Live': { color: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10', dot: 'bg-emerald-400' },
+  'Paused/Blocked': { color: 'border-rose-500/30 text-rose-400 bg-rose-500/10', dot: 'bg-rose-400' }
+};
+
+const DEFAULT_PROJECTS = [
+  {
+    "id": "proj_001",
+    "name": "ALPIZE App Tracker",
+    "platform": "PWA",
+    "desc": "Public repo alpizesolution/apptracker · last push 2026-10-21. This tracker. Offline-first app & project tracker.",
+    "stage": "MVP",
+    "nextAction": "Add tagline, tech stack and live URL",
+    "stack": [],
+    "liveUrl": "",
+    "repoUrl": "https://github.com/alpizesolution/apptracker",
+    "manualProgress": null,
+    "milestones": [
+      {
+        "id": "m001a",
+        "text": "Repository created on GitHub",
+        "completed": true
+      },
+      {
+        "id": "m001b",
+        "text": "Fill in project details",
+        "completed": false
+      }
+    ]
+  },
+  {
+    "id": "proj_002",
+    "name": "PestPatrol",
+    "platform": "Web App",
+    "desc": "Public repo alpizesolution/pestpatrol · last push 2026-10-21.",
+    "stage": "MVP",
+    "nextAction": "Add tagline, tech stack and live URL",
+    "stack": [],
+    "liveUrl": "",
+    "repoUrl": "https://github.com/alpizesolution/pestpatrol",
+    "manualProgress": null,
+    "milestones": [
+      {
+        "id": "m002a",
+        "text": "Repository created on GitHub",
+        "completed": true
+      },
+      {
+        "id": "m002b",
+        "text": "Fill in project details",
+        "completed": false
+      }
+    ]
+  },
+  {
+    "id": "proj_003",
+    "name": "DSP",
+    "platform": "Web App",
+    "desc": "Private repo alpizesolution/DSP · last push 2026-10-21.",
+    "stage": "MVP",
+    "nextAction": "Add tagline, tech stack and live URL",
+    "stack": [],
+    "liveUrl": "",
+    "repoUrl": "https://github.com/alpizesolution/DSP",
+    "manualProgress": null,
+    "milestones": [
+      {
+        "id": "m003a",
+        "text": "Repository created on GitHub",
+        "completed": true
+      },
+      {
+        "id": "m003b",
+        "text": "Fill in project details",
+        "completed": false
+      }
+    ]
+  },
+  {
+    "id": "proj_004",
+    "name": "Kwaderno",
+    "platform": "Web App",
+    "desc": "Public repo alpizesolution/kwaderno · last push 2026-10-21.",
+    "stage": "MVP",
+    "nextAction": "Add tagline, tech stack and live URL",
+    "stack": [],
+    "liveUrl": "",
+    "repoUrl": "https://github.com/alpizesolution/kwaderno",
+    "manualProgress": null,
+    "milestones": [
+      {
+        "id": "m004a",
+        "text": "Repository created on GitHub",
+        "completed": true
+      },
+      {
+        "id": "m004b",
+        "text": "Fill in project details",
+        "completed": false
+      }
+    ]
+  },
+  {
+    "id": "proj_005",
+    "name": "Songlist",
+    "platform": "Web App",
+    "desc": "Public repo alpizesolution/songlist-sh · last push 2026-10-21.",
+    "stage": "MVP",
+    "nextAction": "Add tagline, tech stack and live URL",
+    "stack": [],
+    "liveUrl": "",
+    "repoUrl": "https://github.com/alpizesolution/songlist-sh",
+    "manualProgress": null,
+    "milestones": [
+      {
+        "id": "m005a",
+        "text": "Repository created on GitHub",
+        "completed": true
+      },
+      {
+        "id": "m005b",
+        "text": "Fill in project details",
+        "completed": false
+      }
+    ]
+  },
+  {
+    "id": "proj_006",
+    "name": "Master EPS-TOPIK PH",
+    "platform": "Web App",
+    "desc": "Private repo alpizesolution/MASTER-EPS-TOPIK · last push 2026-10-21. Older versions: master-eps-topik-ph, Firebase-Master-Eps-topik-PH.",
+    "stage": "MVP",
+    "nextAction": "Add tagline, tech stack and live URL",
+    "stack": [],
+    "liveUrl": "",
+    "repoUrl": "https://github.com/alpizesolution/MASTER-EPS-TOPIK",
+    "manualProgress": null,
+    "milestones": [
+      {
+        "id": "m006a",
+        "text": "Repository created on GitHub",
+        "completed": true
+      },
+      {
+        "id": "m006b",
+        "text": "Fill in project details",
+        "completed": false
+      }
+    ]
+  },
+  {
+    "id": "proj_007",
+    "name": "TindaMate",
+    "platform": "Web App",
+    "desc": "Private repo alpizesolution/tindamate · last push 2026-10-20.",
+    "stage": "MVP",
+    "nextAction": "Add tagline, tech stack and live URL",
+    "stack": [],
+    "liveUrl": "",
+    "repoUrl": "https://github.com/alpizesolution/tindamate",
+    "manualProgress": null,
+    "milestones": [
+      {
+        "id": "m007a",
+        "text": "Repository created on GitHub",
+        "completed": true
+      },
+      {
+        "id": "m007b",
+        "text": "Fill in project details",
+        "completed": false
+      }
+    ]
+  },
+  {
+    "id": "proj_008",
+    "name": "EMC Hotel",
+    "platform": "Web App",
+    "desc": "Private repo alpizesolution/emchotel · last push 2026-10-19.",
+    "stage": "MVP",
+    "nextAction": "Add tagline, tech stack and live URL",
+    "stack": [],
+    "liveUrl": "",
+    "repoUrl": "https://github.com/alpizesolution/emchotel",
+    "manualProgress": null,
+    "milestones": [
+      {
+        "id": "m008a",
+        "text": "Repository created on GitHub",
+        "completed": true
+      },
+      {
+        "id": "m008b",
+        "text": "Fill in project details",
+        "completed": false
+      }
+    ]
+  },
+  {
+    "id": "proj_009",
+    "name": "Peptide Tracker PH",
+    "platform": "Web App",
+    "desc": "Private repo alpizesolution/peptide-tracker-ph · last push 2026-10-15.",
+    "stage": "MVP",
+    "nextAction": "Add tagline, tech stack and live URL",
+    "stack": [],
+    "liveUrl": "",
+    "repoUrl": "https://github.com/alpizesolution/peptide-tracker-ph",
+    "manualProgress": null,
+    "milestones": [
+      {
+        "id": "m009a",
+        "text": "Repository created on GitHub",
+        "completed": true
+      },
+      {
+        "id": "m009b",
+        "text": "Fill in project details",
+        "completed": false
+      }
+    ]
+  },
+  {
+    "id": "proj_010",
+    "name": "Queerky Tracker",
+    "platform": "Web App",
+    "desc": "Private repo alpizesolution/queerkytracker · last push 2026-10-15.",
+    "stage": "MVP",
+    "nextAction": "Add tagline, tech stack and live URL",
+    "stack": [],
+    "liveUrl": "",
+    "repoUrl": "https://github.com/alpizesolution/queerkytracker",
+    "manualProgress": null,
+    "milestones": [
+      {
+        "id": "m010a",
+        "text": "Repository created on GitHub",
+        "completed": true
+      },
+      {
+        "id": "m010b",
+        "text": "Fill in project details",
+        "completed": false
+      }
+    ]
+  },
+  {
+    "id": "proj_011",
+    "name": "Zelected Fashion Video Bot",
+    "platform": "Discord/Slack Bot",
+    "desc": "Private repo alpizesolution/zelected-fashion-video-bot · last push 2026-09-28.",
+    "stage": "MVP",
+    "nextAction": "Add tagline, tech stack and live URL",
+    "stack": [],
+    "liveUrl": "",
+    "repoUrl": "https://github.com/alpizesolution/zelected-fashion-video-bot",
+    "manualProgress": null,
+    "milestones": [
+      {
+        "id": "m011a",
+        "text": "Repository created on GitHub",
+        "completed": true
+      },
+      {
+        "id": "m011b",
+        "text": "Fill in project details",
+        "completed": false
+      }
+    ]
+  },
+  {
+    "id": "proj_012",
+    "name": "Queerky City",
+    "platform": "Web App",
+    "desc": "Public repo alpizesolution/queerkycity · last push 2026-05-01.",
+    "stage": "Paused/Blocked",
+    "nextAction": "Add tagline, tech stack and live URL",
+    "stack": [],
+    "liveUrl": "",
+    "repoUrl": "https://github.com/alpizesolution/queerkycity",
+    "manualProgress": null,
+    "milestones": [
+      {
+        "id": "m012a",
+        "text": "Repository created on GitHub",
+        "completed": true
+      },
+      {
+        "id": "m012b",
+        "text": "Fill in project details",
+        "completed": false
+      }
+    ]
+  },
+  {
+    "id": "proj_013",
+    "name": "Hiraya",
+    "platform": "Web App",
+    "desc": "Public repo alpizesolution/hiraya · last push 2026-03-30.",
+    "stage": "Paused/Blocked",
+    "nextAction": "Add tagline, tech stack and live URL",
+    "stack": [],
+    "liveUrl": "",
+    "repoUrl": "https://github.com/alpizesolution/hiraya",
+    "manualProgress": null,
+    "milestones": [
+      {
+        "id": "m013a",
+        "text": "Repository created on GitHub",
+        "completed": true
+      },
+      {
+        "id": "m013b",
+        "text": "Fill in project details",
+        "completed": false
+      }
+    ]
+  },
+  {
+    "id": "proj_014",
+    "name": "ZTUDIO",
+    "platform": "Web App",
+    "desc": "Private repo alpizesolution/ZTUDIO · last push 2026-01-16.",
+    "stage": "Paused/Blocked",
+    "nextAction": "Add tagline, tech stack and live URL",
+    "stack": [],
+    "liveUrl": "",
+    "repoUrl": "https://github.com/alpizesolution/ZTUDIO",
+    "manualProgress": null,
+    "milestones": [
+      {
+        "id": "m014a",
+        "text": "Repository created on GitHub",
+        "completed": true
+      },
+      {
+        "id": "m014b",
+        "text": "Fill in project details",
+        "completed": false
+      }
+    ]
+  },
+  {
+    "id": "proj_015",
+    "name": "HAIRDO",
+    "platform": "Web App",
+    "desc": "Private repo alpizesolution/HAIRDO · last push 2025-12-30. Related repo: HAIRSTYLE.",
+    "stage": "Paused/Blocked",
+    "nextAction": "Add tagline, tech stack and live URL",
+    "stack": [],
+    "liveUrl": "",
+    "repoUrl": "https://github.com/alpizesolution/HAIRDO",
+    "manualProgress": null,
+    "milestones": [
+      {
+        "id": "m015a",
+        "text": "Repository created on GitHub",
+        "completed": true
+      },
+      {
+        "id": "m015b",
+        "text": "Fill in project details",
+        "completed": false
+      }
+    ]
+  }
+];
+
+const STORAGE_KEY = 'alpize_solution_projects';
+
+let projects = [];
+let currentFilter = 'all';
+let searchQuery = '';
+let currentView = 'grid'; // 'grid' | 'kanban'
+
+/* ==========================================================================
+   4. Local Storage & IndexedDB Fallback
+   ========================================================================== */
+function loadData() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      projects = JSON.parse(stored);
+    } else {
+      projects = JSON.parse(JSON.stringify(DEFAULT_PROJECTS));
+      saveData();
+    }
+  } catch (e) {
+    console.error("Storage error:", e);
+    projects = DEFAULT_PROJECTS;
+  }
+  render();
+}
+
+function saveData() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+  } catch (err) {
+    console.error("Failed to save to localStorage:", err);
+  }
+  updateStats();
+}
+
+function loadTemplateSeed() {
+  projects = JSON.parse(JSON.stringify(DEFAULT_PROJECTS));
+  saveData();
+  render();
+  showToast("Reset to ALPIZE SOLUTION project list");
+}
+
+function clearAllData() {
+  if (confirm("Are you sure you want to delete all tracked apps? Make sure to export a JSON backup first.")) {
+    projects = [];
+    saveData();
+    render();
+    showToast("All projects cleared");
+  }
+}
+
+/* ==========================================================================
+   5. Computations & Calculations
+   ========================================================================== */
+function calculateProgress(project) {
+  if (project.manualProgress !== null && project.manualProgress !== undefined && project.manualProgress !== '') {
+    return Math.min(100, Math.max(0, parseInt(project.manualProgress, 10)));
+  }
+  if (!project.milestones || project.milestones.length === 0) return 0;
+  const done = project.milestones.filter(m => m.completed).length;
+  return Math.round((done / project.milestones.length) * 100);
+}
+
+function updateStats() {
+  document.getElementById('statTotal').innerText = projects.length;
+  
+  const wipCount = projects.filter(p => ['Idea', 'Prototype', 'MVP'].includes(p.stage)).length;
+  const liveCount = projects.filter(p => p.stage === 'Shipped/Live').length;
+  const pausedCount = projects.filter(p => p.stage === 'Paused/Blocked').length;
+
+  document.getElementById('statWIP').innerText = wipCount;
+  document.getElementById('statLive').innerText = liveCount;
+  document.getElementById('statPaused').innerText = pausedCount;
+}
+
+/* ==========================================================================
+   6. Rendering Engine (Grid & Kanban Views)
+   ========================================================================== */
+function render() {
+  const gridContainer = document.getElementById('gridView');
+  const kanbanContainer = document.getElementById('kanbanView');
+  const emptyState = document.getElementById('emptyState');
+
+  let filtered = projects.filter(p => {
+    if (currentFilter !== 'all' && p.stage !== currentFilter) {
+      return false;
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchName = p.name.toLowerCase().includes(q);
+      const matchDesc = (p.desc || '').toLowerCase().includes(q);
+      const matchAction = (p.nextAction || '').toLowerCase().includes(q);
+      const matchPlatform = (p.platform || '').toLowerCase().includes(q);
+      const matchStack = (p.stack || []).some(s => s.toLowerCase().includes(q));
+      return matchName || matchDesc || matchAction || matchPlatform || matchStack;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    gridContainer.classList.add('hidden');
+    kanbanContainer.classList.add('hidden');
+    emptyState.classList.remove('hidden');
+    updateStats();
+    return;
+  }
+
+  emptyState.classList.add('hidden');
+
+  if (currentView === 'grid') {
+    gridContainer.classList.remove('hidden');
+    kanbanContainer.classList.add('hidden');
+    gridContainer.innerHTML = filtered.map(p => renderProjectCard(p, false)).join('');
+  } else {
+    gridContainer.classList.add('hidden');
+    kanbanContainer.classList.remove('hidden');
+    renderKanban(filtered);
+  }
+
+  updateStats();
+}
+
+function renderProjectCard(project, isCompact = false) {
+  const progress = calculateProgress(project);
+  const stageStyle = STAGE_CONFIG[project.stage] || { color: 'border-slate-700 text-slate-300 bg-slate-800', dot: 'bg-slate-400' };
+
+  const milestonesHtml = (project.milestones || []).map(m => `
+    <li class="flex items-center justify-between text-xs py-1 group/item">
+      <label class="flex items-center gap-2 cursor-pointer select-none text-slate-300 hover:text-white flex-1 min-w-0 pr-2">
+        <input 
+          type="checkbox" 
+          ${m.completed ? 'checked' : ''} 
+          onchange="toggleMilestone('${project.id}', '${m.id}')"
+          class="custom-checkbox w-3.5 h-3.5 rounded border border-slate-700 bg-slate-950 focus:ring-0 transition cursor-pointer"
+        >
+        <span class="${m.completed ? 'line-through text-slate-500' : ''} truncate">${escapeHtml(m.text)}</span>
+      </label>
+      <button 
+        onclick="deleteMilestone('${project.id}', '${m.id}')" 
+        class="opacity-0 group-hover/item:opacity-100 text-slate-500 hover:text-rose-400 p-0.5 rounded transition"
+        title="Remove milestone"
+      >
+        <i class="ph ph-trash text-sm"></i>
+      </button>
+    </li>
+  `).join('');
+
+  const stackHtml = (project.stack || []).map(tag => `
+    <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-slate-800/90 text-slate-300 border border-slate-700/60">${escapeHtml(tag)}</span>
+  `).join('');
+
+  return `
+    <div class="bg-slate-900/80 border border-slate-800 hover:border-slate-700/80 rounded-2xl p-5 flex flex-col justify-between transition-all duration-200 shadow-xl relative group">
+      <div>
+        <!-- Top Row: Stage & Menu -->
+        <div class="flex items-start justify-between gap-2 mb-2.5">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${stageStyle.color}">
+              <span class="w-1.5 h-1.5 rounded-full ${stageStyle.dot}"></span>
+              ${project.stage}
+            </span>
+            <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700/50">
+              ${escapeHtml(project.platform || 'Web App')}
+            </span>
+          </div>
+          
+          <div class="flex items-center gap-1">
+            <button onclick="duplicateProject('${project.id}')" title="Duplicate App" class="text-slate-500 hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-800 transition">
+              <i class="ph ph-copy text-sm"></i>
+            </button>
+            <button onclick="editProject('${project.id}')" title="Edit App Details" class="text-slate-500 hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-800 transition">
+              <i class="ph ph-pencil-simple text-sm"></i>
+            </button>
+            <button onclick="deleteProject('${project.id}')" title="Delete App" class="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800 transition">
+              <i class="ph ph-trash text-sm"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- App Title & Tagline -->
+        <h2 class="text-base font-bold text-white tracking-tight flex items-center gap-2">
+          ${escapeHtml(project.name)}
+        </h2>
+        <p class="text-xs text-slate-400 mt-1 line-clamp-2 min-h-[32px]">
+          ${escapeHtml(project.desc || 'No description provided for this application.')}
+        </p>
+
+        <!-- Next Priority / Blocker Badge -->
+        <div class="mt-3 bg-slate-950/70 border border-slate-800/80 rounded-xl p-2.5 flex items-start gap-2.5">
+          <div class="p-1 rounded-md bg-amber-500/10 text-amber-400 mt-0.5">
+            <i class="ph-bold ph-lightning text-xs"></i>
+          </div>
+          <div class="text-[11px] min-w-0">
+            <span class="text-slate-500 uppercase font-bold text-[9px] block tracking-wide">Next Priority / Blocker</span>
+            <span class="text-slate-200 font-medium truncate block">${escapeHtml(project.nextAction || 'Define next action step')}</span>
+          </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="mt-4">
+          <div class="flex justify-between items-center text-xs mb-1.5">
+            <span class="text-[11px] font-medium text-slate-400">Milestone Velocity</span>
+            <span class="text-xs font-semibold text-slate-200 font-mono">${progress}%</span>
+          </div>
+          <div class="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800/60">
+            <div class="bg-gradient-to-r from-indigo-500 via-brand-500 to-emerald-400 h-2 rounded-full transition-all duration-300" style="width: ${progress}%"></div>
+          </div>
+        </div>
+
+        <!-- Checklist -->
+        <div class="mt-4 pt-4 border-t border-slate-800/60">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Checklist</span>
+            <span class="text-[10px] text-slate-500 font-mono">${(project.milestones || []).filter(m => m.completed).length}/${(project.milestones || []).length} done</span>
+          </div>
+
+          <ul class="space-y-0.5 max-h-36 overflow-y-auto pr-1">
+            ${milestonesHtml || '<li class="text-xs text-slate-600 italic py-1">No checklist items yet</li>'}
+          </ul>
+
+          <!-- Add Milestone Input -->
+          <div class="mt-2.5 flex gap-1.5">
+            <input 
+              type="text" 
+              id="milestoneInput-${project.id}" 
+              placeholder="Add item..." 
+              onkeydown="if(event.key === 'Enter'){ addMilestone('${project.id}'); }"
+              class="flex-1 px-2.5 py-1 text-xs rounded-md bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+            >
+            <button 
+              onclick="addMilestone('${project.id}')"
+              class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-md text-xs font-medium transition"
+            >
+              Add
+            </button>
+          </div>
+        </div>
+
+        <!-- Tech Stack Tags -->
+        <div class="mt-4 flex flex-wrap gap-1.5">
+          ${stackHtml}
+        </div>
+      </div>
+
+      <!-- Card Bottom Links -->
+      <div class="mt-5 pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
+        <div class="flex items-center gap-3">
+          ${project.repoUrl ? `
+            <a href="${escapeHtml(project.repoUrl)}" target="_blank" rel="noopener noreferrer" class="hover:text-white flex items-center gap-1 transition">
+              <i class="ph-bold ph-git-branch text-sm text-indigo-400"></i>
+              <span>Repo</span>
+            </a>
+          ` : `<span class="text-slate-600 flex items-center gap-1 cursor-not-allowed"><i class="ph-bold ph-git-branch text-sm"></i> No Repo</span>`}
+
+          ${project.liveUrl ? `
+            <a href="${escapeHtml(project.liveUrl)}" target="_blank" rel="noopener noreferrer" class="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-medium transition">
+              <i class="ph-bold ph-arrow-square-out text-sm"></i>
+              <span>Live App</span>
+            </a>
+          ` : ''}
+        </div>
+
+        <!-- Quick Stage Changer Dropdown -->
+        <select onchange="updateProjectStage('${project.id}', this.value)" class="bg-slate-950 border border-slate-800 text-[10px] text-slate-400 rounded px-1.5 py-0.5 focus:outline-none focus:border-indigo-500">
+          ${STAGES.map(s => `<option value="${s}" ${s === project.stage ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  `;
+}
+
+function renderKanban(filteredProjects) {
+  const container = document.getElementById('kanbanColumnsContainer');
+  container.innerHTML = STAGES.map(stage => {
+    const stageProjects = filteredProjects.filter(p => p.stage === stage);
+    const stageStyle = STAGE_CONFIG[stage];
+
+    const cardsHtml = stageProjects.map(p => {
+      const progress = calculateProgress(p);
+      return `
+        <div 
+          draggable="true" 
+          ondragstart="handleDragStart(event, '${p.id}')"
+          class="p-4 rounded-xl bg-slate-900 border border-slate-800/90 shadow-md hover:border-slate-700 transition cursor-grab active:cursor-grabbing mb-3"
+        >
+          <div class="flex items-start justify-between gap-1 mb-1.5">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(p.platform || 'Web')}</span>
+            <div class="flex items-center gap-1">
+              <button onclick="editProject('${p.id}')" class="text-slate-500 hover:text-slate-300 p-0.5"><i class="ph ph-pencil-simple text-xs"></i></button>
+              <button onclick="deleteProject('${p.id}')" class="text-slate-500 hover:text-rose-400 p-0.5"><i class="ph ph-trash text-xs"></i></button>
+            </div>
+          </div>
+
+          <h4 class="text-sm font-bold text-white mb-1">${escapeHtml(p.name)}</h4>
+          <p class="text-[11px] text-slate-400 line-clamp-2 mb-2.5">${escapeHtml(p.desc || '')}</p>
+
+          <!-- Progress bar -->
+          <div class="mb-2">
+            <div class="flex justify-between text-[10px] text-slate-500 mb-0.5">
+              <span>Progress</span>
+              <span class="font-mono text-slate-300">${progress}%</span>
+            </div>
+            <div class="w-full bg-slate-950 rounded-full h-1.5 border border-slate-800">
+              <div class="bg-indigo-500 h-1.5 rounded-full" style="width: ${progress}%"></div>
+            </div>
+          </div>
+
+          ${p.nextAction ? `
+            <div class="text-[10px] bg-slate-950/70 p-1.5 rounded border border-slate-800/80 text-amber-300/90 truncate mb-2">
+              <i class="ph-bold ph-lightning text-[9px] mr-0.5"></i> ${escapeHtml(p.nextAction)}
+            </div>
+          ` : ''}
+
+          <div class="flex items-center justify-between pt-2 border-t border-slate-800/60 text-[10px] text-slate-500">
+            <span>${(p.milestones || []).filter(m => m.completed).length}/${(p.milestones || []).length} tasks</span>
+            <div class="flex items-center gap-2">
+              ${p.repoUrl ? `<a href="${escapeHtml(p.repoUrl)}" target="_blank" class="hover:text-slate-300"><i class="ph-bold ph-git-branch"></i></a>` : ''}
+              ${p.liveUrl ? `<a href="${escapeHtml(p.liveUrl)}" target="_blank" class="text-emerald-400 hover:text-emerald-300"><i class="ph-bold ph-arrow-square-out"></i></a>` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div 
+        class="w-72 bg-slate-900/40 border border-slate-800/70 rounded-2xl p-3 flex flex-col max-h-[75vh]"
+        ondragover="handleDragOver(event)"
+        ondragleave="handleDragLeave(event)"
+        ondrop="handleDrop(event, '${stage}')"
+      >
+        <!-- Column Header -->
+        <div class="flex items-center justify-between pb-3 mb-2 border-b border-slate-800 px-1">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full ${stageStyle.dot}"></span>
+            <span class="text-xs font-bold text-slate-200">${stage}</span>
+          </div>
+          <span class="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">${stageProjects.length}</span>
+        </div>
+
+        <!-- Scrollable Cards -->
+        <div class="overflow-y-auto flex-1 pr-1">
+          ${cardsHtml || '<div class="h-24 border border-dashed border-slate-800/80 rounded-xl flex items-center justify-center text-xs text-slate-600">Drop apps here</div>'}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+/* ==========================================================================
+   7. Drag & Drop for Kanban
+   ========================================================================== */
+let draggedProjectId = null;
+
+function handleDragStart(e, id) {
+  draggedProjectId = id;
+  e.dataTransfer.setData('text/plain', id);
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+
+function handleDrop(e, targetStage) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (!draggedProjectId) return;
+
+  const proj = projects.find(p => p.id === draggedProjectId);
+  if (proj && proj.stage !== targetStage) {
+    proj.stage = targetStage;
+    saveData();
+    render();
+    showToast(`Moved "${proj.name}" to ${targetStage}`);
+  }
+  draggedProjectId = null;
+}
+
+/* ==========================================================================
+   8. Milestone & Task Operations
+   ========================================================================== */
+function toggleMilestone(projectId, milestoneId) {
+  const proj = projects.find(p => p.id === projectId);
+  if (!proj) return;
+  const milestone = (proj.milestones || []).find(m => m.id === milestoneId);
+  if (milestone) {
+    milestone.completed = !milestone.completed;
+    saveData();
+    render();
+  }
+}
+
+function addMilestone(projectId) {
+  const input = document.getElementById(`milestoneInput-${projectId}`);
+  if (!input || !input.value.trim()) return;
+
+  const proj = projects.find(p => p.id === projectId);
+  if (proj) {
+    if (!proj.milestones) proj.milestones = [];
+    proj.milestones.push({
+      id: 'm_' + Date.now(),
+      text: input.value.trim(),
+      completed: false
+    });
+    saveData();
+    render();
+    input.value = '';
+    input.focus();
+    showToast("Task added");
+  }
+}
+
+function deleteMilestone(projectId, milestoneId) {
+  const proj = projects.find(p => p.id === projectId);
+  if (!proj) return;
+  proj.milestones = (proj.milestones || []).filter(m => m.id !== milestoneId);
+  saveData();
+  render();
+}
+
+function updateProjectStage(projectId, newStage) {
+  const proj = projects.find(p => p.id === projectId);
+  if (proj) {
+    proj.stage = newStage;
+    saveData();
+    render();
+    showToast(`Stage updated to ${newStage}`);
+  }
+}
+
+/* ==========================================================================
+   9. Project CRUD Modal Actions
+   ========================================================================== */
+function openModal(isEdit = false) {
+  const modal = document.getElementById('projectModal');
+  const title = document.getElementById('modalTitle');
+  if (!isEdit) {
+    document.getElementById('projectForm').reset();
+    document.getElementById('projectId').value = '';
+    title.innerHTML = '<i class="ph-bold ph-plus-circle text-indigo-400"></i> New Application';
+  }
+  modal.classList.remove('hidden');
+  document.getElementById('formName').focus();
+}
+
+function closeModal() {
+  document.getElementById('projectModal').classList.add('hidden');
+}
+
+function editProject(id) {
+  const proj = projects.find(p => p.id === id);
+  if (!proj) return;
+
+  document.getElementById('projectId').value = proj.id;
+  document.getElementById('formName').value = proj.name || '';
+  document.getElementById('formPlatform').value = proj.platform || 'Web App';
+  document.getElementById('formDesc').value = proj.desc || '';
+  document.getElementById('formStage').value = proj.stage || 'Idea';
+  document.getElementById('formAction').value = proj.nextAction || '';
+  document.getElementById('formStack').value = (proj.stack || []).join(', ');
+  document.getElementById('formLiveUrl').value = proj.liveUrl || '';
+  document.getElementById('formRepoUrl').value = proj.repoUrl || '';
+  document.getElementById('formManualProgress').value = proj.manualProgress !== null && proj.manualProgress !== undefined ? proj.manualProgress : '';
+
+  const title = document.getElementById('modalTitle');
+  title.innerHTML = '<i class="ph-bold ph-pencil-simple text-indigo-400"></i> Edit App Details';
+
+  openModal(true);
+}
+
+function duplicateProject(id) {
+  const proj = projects.find(p => p.id === id);
+  if (!proj) return;
+
+  const copy = JSON.parse(JSON.stringify(proj));
+  copy.id = 'proj_' + Date.now();
+  copy.name = copy.name + ' (Copy)';
+  projects.unshift(copy);
+  saveData();
+  render();
+  showToast(`Duplicated "${proj.name}"`);
+}
+
+function saveProject(e) {
+  e.preventDefault();
+  const id = document.getElementById('projectId').value;
+  const name = document.getElementById('formName').value.trim();
+  const platform = document.getElementById('formPlatform').value;
+  const desc = document.getElementById('formDesc').value.trim();
+  const stage = document.getElementById('formStage').value;
+  const nextAction = document.getElementById('formAction').value.trim();
+  const rawStack = document.getElementById('formStack').value;
+  const liveUrl = document.getElementById('formLiveUrl').value.trim();
+  const repoUrl = document.getElementById('formRepoUrl').value.trim();
+  const rawProgress = document.getElementById('formManualProgress').value;
+  
+  const stack = rawStack.split(',').map(s => s.trim()).filter(Boolean);
+  const manualProgress = rawProgress === '' ? null : parseInt(rawProgress, 10);
+
+  if (id) {
+    const index = projects.findIndex(p => p.id === id);
+    if (index !== -1) {
+      projects[index] = {
+        ...projects[index],
+        name,
+        platform,
+        desc,
+        stage,
+        nextAction,
+        stack,
+        liveUrl,
+        repoUrl,
+        manualProgress
+      };
+      showToast(`Saved changes to "${name}"`);
+    }
+  } else {
+    const newProj = {
+      id: 'proj_' + Date.now(),
+      name,
+      platform,
+      desc,
+      stage,
+      nextAction,
+      stack,
+      liveUrl,
+      repoUrl,
+      manualProgress,
+      milestones: [
+        { id: 'm_' + Date.now(), text: 'Architecture design & scaffolding', completed: false }
+      ]
+    };
+    projects.unshift(newProj);
+    showToast(`Created new app "${name}"`);
+  }
+
+  saveData();
+  render();
+  closeModal();
+}
+
+function deleteProject(id) {
+  const proj = projects.find(p => p.id === id);
+  if (!proj) return;
+
+  if (confirm(`Delete "${proj.name}" permanently?`)) {
+    projects = projects.filter(p => p.id !== id);
+    saveData();
+    render();
+    showToast(`Removed "${proj.name}"`);
+  }
+}
+
+/* ==========================================================================
+   10. Filters, Search & View Modes
+   ========================================================================== */
+function setFilter(filter) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    if (btn.dataset.filter === filter) {
+      btn.className = "filter-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white transition whitespace-nowrap";
+    } else {
+      btn.className = "filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition whitespace-nowrap";
+    }
+  });
+  render();
+}
+
+function handleSearch(val) {
+  searchQuery = val;
+  const clearBtn = document.getElementById('clearSearchBtn');
+  if (val) {
+    clearBtn.classList.remove('hidden');
+  } else {
+    clearBtn.classList.add('hidden');
+  }
+  render();
+}
+
+function clearSearch() {
+  const input = document.getElementById('searchInput');
+  input.value = '';
+  searchQuery = '';
+  document.getElementById('clearSearchBtn').classList.add('hidden');
+  render();
+}
+
+function setViewMode(mode) {
+  currentView = mode;
+  const gridBtn = document.getElementById('viewGridBtn');
+  const kanbanBtn = document.getElementById('viewKanbanBtn');
+
+  if (mode === 'grid') {
+    gridBtn.className = "p-1.5 rounded text-xs transition bg-indigo-600 text-white shadow";
+    kanbanBtn.className = "p-1.5 rounded text-xs transition text-slate-400 hover:text-white";
+  } else {
+    kanbanBtn.className = "p-1.5 rounded text-xs transition bg-indigo-600 text-white shadow";
+    gridBtn.className = "p-1.5 rounded text-xs transition text-slate-400 hover:text-white";
+  }
+  render();
+}
+
+function toggleActionMenu() {
+  const menu = document.getElementById('actionDropdown');
+  menu.classList.toggle('hidden');
+}
+
+// Close dropdown on outside click
+window.addEventListener('click', (e) => {
+  const btn = document.getElementById('actionMenuBtn');
+  const menu = document.getElementById('actionDropdown');
+  if (!btn.contains(e.target) && !menu.contains(e.target)) {
+    menu.classList.add('hidden');
+  }
+});
+
+/* ==========================================================================
+   11. JSON Export & Import Backups
+   ========================================================================== */
+function exportData() {
+  const dataStr = JSON.stringify(projects, null, 2);
+  const blob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `alpize-solution-projects-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast("JSON backup downloaded to PC");
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (Array.isArray(parsed)) {
+        projects = parsed;
+        saveData();
+        render();
+        showToast("Projects successfully restored from JSON");
+      } else {
+        showToast("Invalid JSON schema: Root must be an array of projects");
+      }
+    } catch (err) {
+      showToast("Failed to parse JSON backup file");
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+/* ==========================================================================
+   12. Utilities & Toast System
+   ========================================================================== */
+let toastTimer;
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  const text = document.getElementById('toastMsg');
+  text.innerText = msg;
+  toast.classList.remove('opacity-0', 'translate-y-20', 'pointer-events-none');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.classList.add('opacity-0', 'translate-y-20', 'pointer-events-none');
+  }, 3200);
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModal();
+});
+
+window.onload = function() {
+  updateNetworkStatus();
+  loadData();
+};
+  
