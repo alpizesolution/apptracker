@@ -60,6 +60,26 @@
     ::-webkit-scrollbar-thumb:hover {
       background: #334155;
     }
+    /* Stage colors on project tiles: a colored top edge plus a light tint. */
+    .stage-idea { --stage-rgb: 168, 85, 247; }
+    .stage-prototype { --stage-rgb: 59, 130, 246; }
+    .stage-mvp { --stage-rgb: 99, 102, 241; }
+    .stage-testing { --stage-rgb: 245, 158, 11; }
+    .stage-live { --stage-rgb: 16, 185, 129; }
+    .stage-paused { --stage-rgb: 244, 63, 94; }
+    .stage-tile { --stage-tint: 0.12; }
+    .stage-column { --stage-tint: 0.05; }
+    html.light .stage-tile { --stage-tint: 0.09; }
+    html.light .stage-column { --stage-tint: 0.04; }
+    .stage-tile[class*="stage-"] {
+      border-top: 4px solid rgb(var(--stage-rgb, 100, 116, 139)) !important;
+      background-image: linear-gradient(rgba(var(--stage-rgb, 100, 116, 139), var(--stage-tint)), rgba(var(--stage-rgb, 100, 116, 139), var(--stage-tint)));
+    }
+
+    /* Readability: lift the dimmest slate text to at least 4.5:1 contrast on dark surfaces. */
+    html:not(.light) .text-slate-500 { color: #94a3b8; }
+    html:not(.light) .text-slate-600 { color: #8592a6; }
+
     .custom-checkbox:checked {
       background-color: #6366f1;
       border-color: #6366f1;
@@ -93,7 +113,7 @@
             <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-1.5">
               ALPIZE SOLUTION
             </h1>
-            <span class="text-[10px] font-semibold uppercase tracking-wider bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 px-2 py-0.5 rounded-full">PWA</span>
+            <span class="text-[11px] font-semibold uppercase tracking-wider bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 px-2 py-0.5 rounded-full">PWA</span>
             <div id="networkStatusBadge" class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
               <span id="networkStatusText" class="hidden sm:inline">Online</span>

@@ -73,12 +73,12 @@ window.addEventListener('offline', () => {
 const STAGES = ['Idea', 'Prototype', 'MVP', 'Testing/Review', 'Shipped/Live', 'Paused/Blocked'];
 
 const STAGE_CONFIG = {
-  'Idea': { color: 'border-purple-500/30 text-purple-400 bg-purple-500/10', dot: 'bg-purple-400' },
-  'Prototype': { color: 'border-blue-500/30 text-blue-400 bg-blue-500/10', dot: 'bg-blue-400' },
-  'MVP': { color: 'border-indigo-500/30 text-indigo-400 bg-indigo-500/10', dot: 'bg-indigo-400' },
-  'Testing/Review': { color: 'border-amber-500/30 text-amber-400 bg-amber-500/10', dot: 'bg-amber-400' },
-  'Shipped/Live': { color: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10', dot: 'bg-emerald-400' },
-  'Paused/Blocked': { color: 'border-rose-500/30 text-rose-400 bg-rose-500/10', dot: 'bg-rose-400' }
+  'Idea': { color: 'border-purple-500/30 text-purple-400 bg-purple-500/10', dot: 'bg-purple-400', tile: 'stage-idea' },
+  'Prototype': { color: 'border-blue-500/30 text-blue-400 bg-blue-500/10', dot: 'bg-blue-400', tile: 'stage-prototype' },
+  'MVP': { color: 'border-indigo-500/30 text-indigo-400 bg-indigo-500/10', dot: 'bg-indigo-400', tile: 'stage-mvp' },
+  'Testing/Review': { color: 'border-amber-500/30 text-amber-400 bg-amber-500/10', dot: 'bg-amber-400', tile: 'stage-testing' },
+  'Shipped/Live': { color: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10', dot: 'bg-emerald-400', tile: 'stage-live' },
+  'Paused/Blocked': { color: 'border-rose-500/30 text-rose-400 bg-rose-500/10', dot: 'bg-rose-400', tile: 'stage-paused' }
 };
 
 const DEFAULT_PROJECTS = [
@@ -596,7 +596,7 @@ function render() {
 
 function renderProjectCard(project, isCompact = false) {
   const progress = calculateProgress(project);
-  const stageStyle = STAGE_CONFIG[project.stage] || { color: 'border-slate-700 text-slate-300 bg-slate-800', dot: 'bg-slate-400' };
+  const stageStyle = STAGE_CONFIG[project.stage] || { color: 'border-slate-700 text-slate-300 bg-slate-800', dot: 'bg-slate-400', tile: '' };
 
   const milestonesHtml = (project.milestones || []).map(m => `
     <li class="flex items-center justify-between text-xs py-1 group/item">
@@ -620,11 +620,11 @@ function renderProjectCard(project, isCompact = false) {
   `).join('');
 
   const stackHtml = (project.stack || []).map(tag => `
-    <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-slate-800/90 text-slate-300 border border-slate-700/60">${escapeHtml(tag)}</span>
+    <span class="text-[11px] font-mono px-2 py-0.5 rounded-md bg-slate-800/90 text-slate-300 border border-slate-700/60">${escapeHtml(tag)}</span>
   `).join('');
 
   return `
-    <div class="bg-slate-900/80 border border-slate-800 hover:border-slate-700/80 rounded-2xl p-5 flex flex-col justify-between transition-all duration-200 shadow-xl relative group">
+    <div class="stage-tile ${stageStyle.tile} bg-slate-900/80 border border-slate-800 hover:border-slate-700/80 rounded-2xl p-5 flex flex-col justify-between transition-all duration-200 shadow-xl relative group">
       <div>
         <!-- Top Row: Stage & Menu -->
         <div class="flex items-start justify-between gap-2 mb-2.5">
@@ -633,7 +633,7 @@ function renderProjectCard(project, isCompact = false) {
               <span class="w-1.5 h-1.5 rounded-full ${stageStyle.dot}"></span>
               ${project.stage}
             </span>
-            <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700/50">
+            <span class="text-[11px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700/50">
               ${escapeHtml(project.platform || 'Web App')}
             </span>
           </div>
@@ -665,7 +665,7 @@ function renderProjectCard(project, isCompact = false) {
             <i class="ph-bold ph-lightning text-xs"></i>
           </div>
           <div class="text-[11px] min-w-0">
-            <span class="text-slate-500 uppercase font-bold text-[9px] block tracking-wide">Next Priority / Blocker</span>
+            <span class="text-slate-500 uppercase font-bold text-[10px] block tracking-wide">Next Priority / Blocker</span>
             <span class="text-slate-200 font-medium truncate block">${escapeHtml(project.nextAction || 'Define next action step')}</span>
           </div>
         </div>
@@ -685,7 +685,7 @@ function renderProjectCard(project, isCompact = false) {
         <div class="mt-4 pt-4 border-t border-slate-800/60">
           <div class="flex items-center justify-between mb-2">
             <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Checklist</span>
-            <span class="text-[10px] text-slate-500 font-mono">${(project.milestones || []).filter(m => m.completed).length}/${(project.milestones || []).length} done</span>
+            <span class="text-[11px] text-slate-500 font-mono">${(project.milestones || []).filter(m => m.completed).length}/${(project.milestones || []).length} done</span>
           </div>
 
           <ul class="space-y-0.5 max-h-36 overflow-y-auto pr-1">
@@ -745,7 +745,7 @@ function renderProjectCard(project, isCompact = false) {
         </div>
 
         <!-- Quick Stage Changer Dropdown -->
-        <select onchange="updateProjectStage('${project.id}', this.value)" class="bg-slate-950 border border-slate-800 text-[10px] text-slate-400 rounded px-1.5 py-0.5 focus:outline-none focus:border-indigo-500">
+        <select onchange="updateProjectStage('${project.id}', this.value)" class="bg-slate-950 border border-slate-800 text-[11px] text-slate-400 rounded px-1.5 py-0.5 focus:outline-none focus:border-indigo-500">
           ${STAGES.map(s => `<option value="${s}" ${s === project.stage ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
       </div>
@@ -765,10 +765,10 @@ function renderKanban(filteredProjects) {
         <div 
           draggable="true" 
           ondragstart="handleDragStart(event, '${p.id}')"
-          class="p-4 rounded-xl bg-slate-900 border border-slate-800/90 shadow-md hover:border-slate-700 transition cursor-grab active:cursor-grabbing mb-3"
+          class="stage-tile ${stageStyle.tile} p-4 rounded-xl bg-slate-900 border border-slate-800/90 shadow-md hover:border-slate-700 transition cursor-grab active:cursor-grabbing mb-3"
         >
           <div class="flex items-start justify-between gap-1 mb-1.5">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(p.platform || 'Web')}</span>
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(p.platform || 'Web')}</span>
             <div class="flex items-center gap-1">
               <button onclick="editProject('${p.id}')" class="text-slate-500 hover:text-slate-300 p-0.5"><i class="ph ph-pencil-simple text-xs"></i></button>
               <button onclick="deleteProject('${p.id}')" class="text-slate-500 hover:text-rose-400 p-0.5"><i class="ph ph-trash text-xs"></i></button>
@@ -780,7 +780,7 @@ function renderKanban(filteredProjects) {
 
           <!-- Progress bar -->
           <div class="mb-2">
-            <div class="flex justify-between text-[10px] text-slate-500 mb-0.5">
+            <div class="flex justify-between text-[11px] text-slate-500 mb-0.5">
               <span>Progress</span>
               <span class="font-mono text-slate-300">${progress}%</span>
             </div>
@@ -790,12 +790,12 @@ function renderKanban(filteredProjects) {
           </div>
 
           ${p.nextAction ? `
-            <div class="text-[10px] bg-slate-950/70 p-1.5 rounded border border-slate-800/80 text-amber-300/90 truncate mb-2">
-              <i class="ph-bold ph-lightning text-[9px] mr-0.5"></i> ${escapeHtml(p.nextAction)}
+            <div class="text-[11px] bg-slate-950/70 p-1.5 rounded border border-slate-800/80 text-amber-300/90 truncate mb-2">
+              <i class="ph-bold ph-lightning text-[10px] mr-0.5"></i> ${escapeHtml(p.nextAction)}
             </div>
           ` : ''}
 
-          <div class="flex items-center justify-between pt-2 border-t border-slate-800/60 text-[10px] text-slate-500">
+          <div class="flex items-center justify-between pt-2 border-t border-slate-800/60 text-[11px] text-slate-500">
             <span>${(p.milestones || []).filter(m => m.completed).length}/${(p.milestones || []).length} tasks</span>
             <div class="flex items-center gap-2">
               ${p.repoUrl ? `<a href="${escapeHtml(p.repoUrl)}" target="_blank" class="hover:text-slate-300"><i class="ph-bold ph-git-branch"></i></a>` : ''}
@@ -808,7 +808,7 @@ function renderKanban(filteredProjects) {
 
     return `
       <div 
-        class="min-w-0 bg-slate-900/40 border border-slate-800/70 rounded-2xl p-3 flex flex-col max-h-[75vh]"
+        class="stage-tile stage-column ${stageStyle.tile} min-w-0 bg-slate-900/40 border border-slate-800/70 rounded-2xl p-3 flex flex-col max-h-[75vh]"
         ondragover="handleDragOver(event)"
         ondragleave="handleDragLeave(event)"
         ondrop="handleDrop(event, '${stage}')"
