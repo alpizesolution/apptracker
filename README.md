@@ -7,7 +7,7 @@ Offline-first tracker for ALPIZE SOLUTION apps and projects. Installable as a PW
 - Card grid and Kanban board views (drag cards between stages)
 - Per-project checklist, progress bar, next priority, tech stack, repo and live links
 - Search and stage filters
-- Light and dark theme (sun/moon button in the header, remembered per browser)
+- Bold neo-brutalist look (cream background, black outlines, hard shadows) with a cream and a dark theme; the moon/sun button switches them
 - Live website link next to the Repo link on each card; click **Add Live** to set one
 - Idea board: paste a list of ideas and each line becomes a sticky note; turn a note into an app card with **Make App**
 - Per-app logins (username, role, password) with show/hide and copy buttons. Logins are stored only in your browser and are never committed to this repo

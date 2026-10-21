@@ -48,15 +48,9 @@ function updateNetworkStatus() {
   const text = document.getElementById('networkStatusText');
   const banner = document.getElementById('offlineBanner');
 
-  if (isOnline) {
-    badge.className = "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
-    text.innerText = "Online";
-    banner.classList.add('hidden');
-  } else {
-    badge.className = "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20";
-    text.innerText = "Offline Mode";
-    banner.classList.remove('hidden');
-  }
+  badge.classList.toggle('offline', !isOnline);
+  text.innerText = isOnline ? "Online" : "Offline";
+  banner.classList.toggle('hidden', isOnline);
 }
 window.addEventListener('online', () => {
   updateNetworkStatus();
@@ -72,13 +66,14 @@ window.addEventListener('offline', () => {
    ========================================================================== */
 const STAGES = ['Idea', 'Prototype', 'MVP', 'Testing/Review', 'Shipped/Live', 'Paused/Blocked'];
 
+// `tile` sets the stage color class (see styles.css); `emoji` matches the filter pills.
 const STAGE_CONFIG = {
-  'Idea': { color: 'border-purple-500/30 text-purple-400 bg-purple-500/10', dot: 'bg-purple-400', tile: 'stage-idea' },
-  'Prototype': { color: 'border-blue-500/30 text-blue-400 bg-blue-500/10', dot: 'bg-blue-400', tile: 'stage-prototype' },
-  'MVP': { color: 'border-indigo-500/30 text-indigo-400 bg-indigo-500/10', dot: 'bg-indigo-400', tile: 'stage-mvp' },
-  'Testing/Review': { color: 'border-amber-500/30 text-amber-400 bg-amber-500/10', dot: 'bg-amber-400', tile: 'stage-testing' },
-  'Shipped/Live': { color: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10', dot: 'bg-emerald-400', tile: 'stage-live' },
-  'Paused/Blocked': { color: 'border-rose-500/30 text-rose-400 bg-rose-500/10', dot: 'bg-rose-400', tile: 'stage-paused' }
+  'Idea': { tile: 'stage-idea', emoji: '💡' },
+  'Prototype': { tile: 'stage-prototype', emoji: '🧪' },
+  'MVP': { tile: 'stage-mvp', emoji: '🔨' },
+  'Testing/Review': { tile: 'stage-testing', emoji: '🔍' },
+  'Shipped/Live': { tile: 'stage-live', emoji: '🚀' },
+  'Paused/Blocked': { tile: 'stage-paused', emoji: '⛔' }
 };
 
 const DEFAULT_PROJECTS = [
@@ -520,15 +515,16 @@ function calculateProgress(project) {
 }
 
 function updateStats() {
-  document.getElementById('statTotal').innerText = projects.length;
-  
   const wipCount = projects.filter(p => ['Idea', 'Prototype', 'MVP'].includes(p.stage)).length;
   const liveCount = projects.filter(p => p.stage === 'Shipped/Live').length;
   const pausedCount = projects.filter(p => p.stage === 'Paused/Blocked').length;
 
+  document.getElementById('statTotal').innerText = projects.length;
   document.getElementById('statWIP').innerText = wipCount;
   document.getElementById('statLive').innerText = liveCount;
   document.getElementById('statPaused').innerText = pausedCount;
+  document.getElementById('stickerTotal').innerText = projects.length;
+  document.getElementById('stickerLive').innerText = liveCount;
 }
 
 /* ==========================================================================
@@ -584,7 +580,7 @@ function render() {
   if (currentView === 'grid') {
     gridContainer.classList.remove('hidden');
     kanbanContainer.classList.add('hidden');
-    gridContainer.innerHTML = filtered.map(p => renderProjectCard(p, false)).join('');
+    gridContainer.innerHTML = filtered.map(p => renderProjectCard(p)).join('');
   } else {
     gridContainer.classList.add('hidden');
     kanbanContainer.classList.remove('hidden');
@@ -594,239 +590,125 @@ function render() {
   updateStats();
 }
 
-function renderProjectCard(project, isCompact = false) {
+function renderProjectCard(project) {
   const progress = calculateProgress(project);
-  const stageStyle = STAGE_CONFIG[project.stage] || { color: 'border-slate-700 text-slate-300 bg-slate-800', dot: 'bg-slate-400', tile: '' };
+  const stage = STAGE_CONFIG[project.stage] || { tile: '', emoji: '' };
+  const milestones = project.milestones || [];
+  const doneCount = milestones.filter(m => m.completed).length;
+  const loginCount = (project.logins || []).length;
 
-  const milestonesHtml = (project.milestones || []).map(m => `
-    <li class="flex items-center justify-between text-xs py-1 group/item">
-      <label class="flex items-center gap-2 cursor-pointer select-none text-slate-300 hover:text-white flex-1 min-w-0 pr-2">
-        <input 
-          type="checkbox" 
-          ${m.completed ? 'checked' : ''} 
-          onchange="toggleMilestone('${project.id}', '${m.id}')"
-          class="custom-checkbox w-3.5 h-3.5 rounded border border-slate-700 bg-slate-950 focus:ring-0 transition cursor-pointer"
-        >
-        <span class="${m.completed ? 'line-through text-slate-500' : ''} truncate">${escapeHtml(m.text)}</span>
+  const milestonesHtml = milestones.map(m => `
+    <li>
+      <label>
+        <input type="checkbox" class="check" ${m.completed ? 'checked' : ''} onchange="toggleMilestone('${project.id}', '${m.id}')">
+        <span class="${m.completed ? 'done' : ''}">${escapeHtml(m.text)}</span>
       </label>
-      <button 
-        onclick="deleteMilestone('${project.id}', '${m.id}')" 
-        class="opacity-0 group-hover/item:opacity-100 text-slate-500 hover:text-rose-400 p-0.5 rounded transition"
-        title="Remove milestone"
-      >
-        <i class="ph ph-trash text-sm"></i>
-      </button>
+      <button class="icon-btn danger" onclick="deleteMilestone('${project.id}', '${m.id}')" title="Remove item"><i class="ph-bold ph-trash"></i></button>
     </li>
   `).join('');
 
-  const stackHtml = (project.stack || []).map(tag => `
-    <span class="text-[11px] font-mono px-2 py-0.5 rounded-md bg-slate-800/90 text-slate-300 border border-slate-700/60">${escapeHtml(tag)}</span>
-  `).join('');
+  const stackHtml = (project.stack || []).map(tag => `<span class="chip chip-mono">${escapeHtml(tag)}</span>`).join('');
 
   return `
-    <div class="stage-tile ${stageStyle.tile} bg-slate-900/80 border border-slate-800 hover:border-slate-700/80 rounded-2xl p-5 flex flex-col justify-between transition-all duration-200 shadow-xl relative group">
+    <article class="card ${stage.tile}">
       <div>
-        <!-- Top Row: Stage & Menu -->
-        <div class="flex items-start justify-between gap-2 mb-2.5">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${stageStyle.color}">
-              <span class="w-1.5 h-1.5 rounded-full ${stageStyle.dot}"></span>
-              ${project.stage}
-            </span>
-            <span class="text-[11px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700/50">
-              ${escapeHtml(project.platform || 'Web App')}
-            </span>
+        <div class="card-top">
+          <div class="card-badges">
+            <span class="stage-pill ${stage.tile}">${stage.emoji} ${escapeHtml(project.stage)}</span>
+            <span class="chip">${escapeHtml(project.platform || 'Web App')}</span>
           </div>
-          
-          <div class="flex items-center gap-1">
-            <button onclick="duplicateProject('${project.id}')" title="Duplicate App" class="text-slate-500 hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-800 transition">
-              <i class="ph ph-copy text-sm"></i>
-            </button>
-            <button onclick="editProject('${project.id}')" title="Edit App Details" class="text-slate-500 hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-800 transition">
-              <i class="ph ph-pencil-simple text-sm"></i>
-            </button>
-            <button onclick="deleteProject('${project.id}')" title="Delete App" class="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800 transition">
-              <i class="ph ph-trash text-sm"></i>
-            </button>
+          <div class="card-actions">
+            <button class="icon-btn" onclick="duplicateProject('${project.id}')" title="Duplicate app"><i class="ph-bold ph-copy"></i></button>
+            <button class="icon-btn" onclick="editProject('${project.id}')" title="Edit app"><i class="ph-bold ph-pencil-simple"></i></button>
+            <button class="icon-btn danger" onclick="deleteProject('${project.id}')" title="Delete app"><i class="ph-bold ph-trash"></i></button>
           </div>
         </div>
 
-        <!-- App Title & Tagline -->
-        <h2 class="text-base font-bold text-white tracking-tight flex items-center gap-2">
-          ${escapeHtml(project.name)}
-        </h2>
-        <p class="text-xs text-slate-400 mt-1 line-clamp-2 min-h-[32px]">
-          ${escapeHtml(project.desc || 'No description provided for this application.')}
-        </p>
+        <h2>${escapeHtml(project.name)}</h2>
+        <p class="desc">${escapeHtml(project.desc || 'No tagline yet.')}</p>
 
-        <!-- Next Priority / Blocker Badge -->
-        <div class="mt-3 bg-slate-950/70 border border-slate-800/80 rounded-xl p-2.5 flex items-start gap-2.5">
-          <div class="p-1 rounded-md bg-amber-500/10 text-amber-400 mt-0.5">
-            <i class="ph-bold ph-lightning text-xs"></i>
-          </div>
-          <div class="text-[11px] min-w-0">
-            <span class="text-slate-500 uppercase font-bold text-[10px] block tracking-wide">Next Priority / Blocker</span>
-            <span class="text-slate-200 font-medium truncate block">${escapeHtml(project.nextAction || 'Define next action step')}</span>
+        <div class="next">
+          <i class="ph-bold ph-lightning"></i>
+          <div style="min-width: 0;">
+            <small>Next step / blocker</small>
+            <span>${escapeHtml(project.nextAction || 'Define the next step')}</span>
           </div>
         </div>
 
-        <!-- Progress Bar -->
-        <div class="mt-4">
-          <div class="flex justify-between items-center text-xs mb-1.5">
-            <span class="text-[11px] font-medium text-slate-400">Milestone Velocity</span>
-            <span class="text-xs font-semibold text-slate-200 font-mono">${progress}%</span>
-          </div>
-          <div class="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800/60">
-            <div class="bg-gradient-to-r from-indigo-500 via-brand-500 to-emerald-400 h-2 rounded-full transition-all duration-300" style="width: ${progress}%"></div>
+        <div class="progress">
+          <div class="progress-head"><span>Progress</span><span>${progress}%</span></div>
+          <div class="bar"><div style="width: ${progress}%"></div></div>
+        </div>
+
+        <div class="checklist">
+          <div class="checklist-head"><span>Checklist</span><span>${doneCount}/${milestones.length} done</span></div>
+          <ul>${milestonesHtml || '<li class="hint">No checklist items yet</li>'}</ul>
+          <div class="add-row">
+            <input type="text" id="milestoneInput-${project.id}" class="field field-sm" placeholder="Add item..." onkeydown="if(event.key === 'Enter'){ addMilestone('${project.id}'); }">
+            <button class="btn btn-sm" onclick="addMilestone('${project.id}')">Add</button>
           </div>
         </div>
 
-        <!-- Checklist -->
-        <div class="mt-4 pt-4 border-t border-slate-800/60">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Checklist</span>
-            <span class="text-[11px] text-slate-500 font-mono">${(project.milestones || []).filter(m => m.completed).length}/${(project.milestones || []).length} done</span>
-          </div>
-
-          <ul class="space-y-0.5 max-h-36 overflow-y-auto pr-1">
-            ${milestonesHtml || '<li class="text-xs text-slate-600 italic py-1">No checklist items yet</li>'}
-          </ul>
-
-          <!-- Add Milestone Input -->
-          <div class="mt-2.5 flex gap-1.5">
-            <input 
-              type="text" 
-              id="milestoneInput-${project.id}" 
-              placeholder="Add item..." 
-              onkeydown="if(event.key === 'Enter'){ addMilestone('${project.id}'); }"
-              class="flex-1 px-2.5 py-1 text-xs rounded-md bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500"
-            >
-            <button 
-              onclick="addMilestone('${project.id}')"
-              class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-md text-xs font-medium transition"
-            >
-              Add
-            </button>
-          </div>
-        </div>
-
-        <!-- Tech Stack Tags -->
-        <div class="mt-4 flex flex-wrap gap-1.5">
-          ${stackHtml}
-        </div>
+        ${stackHtml ? `<div class="stack">${stackHtml}</div>` : ''}
       </div>
 
-      <!-- Card Bottom Links -->
-      <div class="mt-5 pt-3 border-t border-slate-800/60 flex items-center justify-between gap-2 text-xs text-slate-400">
-        <div class="flex items-center gap-x-3 gap-y-1 flex-wrap min-w-0">
-          ${project.repoUrl ? `
-            <a href="${escapeHtml(project.repoUrl)}" target="_blank" rel="noopener noreferrer" class="hover:text-white flex items-center gap-1 transition">
-              <i class="ph-bold ph-git-branch text-sm text-indigo-400"></i>
-              <span>Repo</span>
-            </a>
-          ` : `<span class="text-slate-600 flex items-center gap-1 cursor-not-allowed"><i class="ph-bold ph-git-branch text-sm"></i> No Repo</span>`}
-
-          ${project.liveUrl ? `
-            <a href="${escapeHtml(project.liveUrl)}" target="_blank" rel="noopener noreferrer" class="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-medium transition">
-              <i class="ph-bold ph-arrow-square-out text-sm"></i>
-              <span>Live App</span>
-            </a>
-          ` : `
-            <button onclick="setLiveUrl('${project.id}')" title="Add the live website link" class="text-slate-500 hover:text-emerald-400 flex items-center gap-1 whitespace-nowrap transition">
-              <i class="ph-bold ph-globe text-sm"></i>
-              <span>Add Live</span>
-            </button>
-          `}
-
-          <button onclick="openLogins('${project.id}')" title="Saved logins for this app" class="hover:text-white flex items-center gap-1 transition">
-            <i class="ph-bold ph-key text-sm text-amber-400"></i>
-            <span>Logins${(project.logins || []).length ? ` (${project.logins.length})` : ''}</span>
-          </button>
+      <div class="card-foot">
+        <div class="links">
+          ${project.repoUrl
+            ? `<a class="link" href="${escapeHtml(project.repoUrl)}" target="_blank" rel="noopener noreferrer"><i class="ph-bold ph-github-logo"></i> Repo</a>`
+            : `<span class="link muted"><i class="ph-bold ph-github-logo"></i> No repo</span>`}
+          ${project.liveUrl
+            ? `<a class="link live" href="${escapeHtml(project.liveUrl)}" target="_blank" rel="noopener noreferrer"><i class="ph-bold ph-arrow-square-out"></i> Live</a>`
+            : `<button class="link ghost" onclick="setLiveUrl('${project.id}')" title="Add the live website link"><i class="ph-bold ph-globe"></i> Add live</button>`}
+          <button class="link" onclick="openLogins('${project.id}')" title="Saved logins for this app"><i class="ph-bold ph-key"></i> Logins${loginCount ? ` (${loginCount})` : ''}</button>
         </div>
-
-        <!-- Quick Stage Changer Dropdown -->
-        <select onchange="updateProjectStage('${project.id}', this.value)" class="bg-slate-950 border border-slate-800 text-[11px] text-slate-400 rounded px-1.5 py-0.5 focus:outline-none focus:border-indigo-500">
+        <select class="stage-select" onchange="updateProjectStage('${project.id}', this.value)" title="Change stage">
           ${STAGES.map(s => `<option value="${s}" ${s === project.stage ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
       </div>
-    </div>
+    </article>
   `;
 }
 
 function renderKanban(filteredProjects) {
   const container = document.getElementById('kanbanColumnsContainer');
-  container.innerHTML = STAGES.map(stage => {
-    const stageProjects = filteredProjects.filter(p => p.stage === stage);
-    const stageStyle = STAGE_CONFIG[stage];
+  container.innerHTML = STAGES.map(stageName => {
+    const stageProjects = filteredProjects.filter(p => p.stage === stageName);
+    const stage = STAGE_CONFIG[stageName];
 
     const cardsHtml = stageProjects.map(p => {
       const progress = calculateProgress(p);
+      const milestones = p.milestones || [];
       return `
-        <div 
-          draggable="true" 
-          ondragstart="handleDragStart(event, '${p.id}')"
-          class="stage-tile ${stageStyle.tile} p-4 rounded-xl bg-slate-900 border border-slate-800/90 shadow-md hover:border-slate-700 transition cursor-grab active:cursor-grabbing mb-3"
-        >
-          <div class="flex items-start justify-between gap-1 mb-1.5">
-            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(p.platform || 'Web')}</span>
-            <div class="flex items-center gap-1">
-              <button onclick="editProject('${p.id}')" class="text-slate-500 hover:text-slate-300 p-0.5"><i class="ph ph-pencil-simple text-xs"></i></button>
-              <button onclick="deleteProject('${p.id}')" class="text-slate-500 hover:text-rose-400 p-0.5"><i class="ph ph-trash text-xs"></i></button>
-            </div>
+        <div class="kcard ${stage.tile}" draggable="true" ondragstart="handleDragStart(event, '${p.id}')">
+          <div class="meta">
+            <span>${escapeHtml(p.platform || 'Web')}</span>
+            <span>
+              <button class="icon-btn" onclick="editProject('${p.id}')" title="Edit app"><i class="ph-bold ph-pencil-simple"></i></button>
+              <button class="icon-btn danger" onclick="deleteProject('${p.id}')" title="Delete app"><i class="ph-bold ph-trash"></i></button>
+            </span>
           </div>
-
-          <h4 class="text-sm font-bold text-white mb-1">${escapeHtml(p.name)}</h4>
-          <p class="text-[11px] text-slate-400 line-clamp-2 mb-2.5">${escapeHtml(p.desc || '')}</p>
-
-          <!-- Progress bar -->
-          <div class="mb-2">
-            <div class="flex justify-between text-[11px] text-slate-500 mb-0.5">
-              <span>Progress</span>
-              <span class="font-mono text-slate-300">${progress}%</span>
-            </div>
-            <div class="w-full bg-slate-950 rounded-full h-1.5 border border-slate-800">
-              <div class="bg-indigo-500 h-1.5 rounded-full" style="width: ${progress}%"></div>
-            </div>
-          </div>
-
-          ${p.nextAction ? `
-            <div class="text-[11px] bg-slate-950/70 p-1.5 rounded border border-slate-800/80 text-amber-300/90 truncate mb-2">
-              <i class="ph-bold ph-lightning text-[10px] mr-0.5"></i> ${escapeHtml(p.nextAction)}
-            </div>
-          ` : ''}
-
-          <div class="flex items-center justify-between pt-2 border-t border-slate-800/60 text-[11px] text-slate-500">
-            <span>${(p.milestones || []).filter(m => m.completed).length}/${(p.milestones || []).length} tasks</span>
-            <div class="flex items-center gap-2">
-              ${p.repoUrl ? `<a href="${escapeHtml(p.repoUrl)}" target="_blank" class="hover:text-slate-300"><i class="ph-bold ph-git-branch"></i></a>` : ''}
-              ${p.liveUrl ? `<a href="${escapeHtml(p.liveUrl)}" target="_blank" class="text-emerald-400 hover:text-emerald-300"><i class="ph-bold ph-arrow-square-out"></i></a>` : ''}
-            </div>
+          <h4>${escapeHtml(p.name)}</h4>
+          <p class="desc">${escapeHtml(p.desc || '')}</p>
+          <div class="progress-head" style="font-size: 12px; margin: 0;"><span>Progress</span><span>${progress}%</span></div>
+          <div class="bar"><div style="width: ${progress}%"></div></div>
+          ${p.nextAction ? `<div class="nexttxt">⚡ ${escapeHtml(p.nextAction)}</div>` : ''}
+          <div class="foot">
+            <span>${milestones.filter(m => m.completed).length}/${milestones.length} tasks</span>
+            <span>
+              ${p.repoUrl ? `<a href="${escapeHtml(p.repoUrl)}" target="_blank" rel="noopener noreferrer" title="Repo"><i class="ph-bold ph-github-logo"></i></a>` : ''}
+              ${p.liveUrl ? `<a href="${escapeHtml(p.liveUrl)}" target="_blank" rel="noopener noreferrer" title="Live website"><i class="ph-bold ph-arrow-square-out"></i></a>` : ''}
+            </span>
           </div>
         </div>
       `;
     }).join('');
 
     return `
-      <div 
-        class="stage-tile stage-column ${stageStyle.tile} min-w-0 bg-slate-900/40 border border-slate-800/70 rounded-2xl p-3 flex flex-col max-h-[75vh]"
-        ondragover="handleDragOver(event)"
-        ondragleave="handleDragLeave(event)"
-        ondrop="handleDrop(event, '${stage}')"
-      >
-        <!-- Column Header -->
-        <div class="flex items-center justify-between pb-3 mb-2 border-b border-slate-800 px-1">
-          <div class="flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full ${stageStyle.dot}"></span>
-            <span class="text-xs font-bold text-slate-200">${stage}</span>
-          </div>
-          <span class="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">${stageProjects.length}</span>
-        </div>
-
-        <!-- Scrollable Cards -->
-        <div class="overflow-y-auto flex-1 pr-1">
-          ${cardsHtml || '<div class="h-24 border border-dashed border-slate-800/80 rounded-xl flex items-center justify-center text-xs text-slate-600">Drop apps here</div>'}
-        </div>
-      </div>
+      <section class="kcol ${stage.tile}" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, '${stageName}')">
+        <div class="kcol-head"><span>${stage.emoji} ${stageName}</span><span class="count">${stageProjects.length}</span></div>
+        <div class="kcol-body">${cardsHtml || '<div class="drop-empty">Drop apps here</div>'}</div>
+      </section>
     `;
   }).join('');
 }
@@ -926,7 +808,7 @@ function openModal(isEdit = false) {
   if (!isEdit) {
     document.getElementById('projectForm').reset();
     document.getElementById('projectId').value = '';
-    title.innerHTML = '<i class="ph-bold ph-plus-circle text-indigo-400"></i> New Application';
+    title.innerHTML = '<i class="ph-bold ph-plus-circle"></i> New app';
   }
   modal.classList.remove('hidden');
   document.getElementById('formName').focus();
@@ -952,7 +834,7 @@ function editProject(id) {
   document.getElementById('formManualProgress').value = proj.manualProgress !== null && proj.manualProgress !== undefined ? proj.manualProgress : '';
 
   const title = document.getElementById('modalTitle');
-  title.innerHTML = '<i class="ph-bold ph-pencil-simple text-indigo-400"></i> Edit App Details';
+  title.innerHTML = '<i class="ph-bold ph-pencil-simple"></i> Edit app';
 
   openModal(true);
 }
@@ -1059,11 +941,7 @@ function deleteProject(id) {
 function setFilter(filter) {
   currentFilter = filter;
   document.querySelectorAll('.filter-btn').forEach(btn => {
-    if (btn.dataset.filter === filter) {
-      btn.className = "filter-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white transition whitespace-nowrap";
-    } else {
-      btn.className = "filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition whitespace-nowrap";
-    }
+    btn.classList.toggle('active', btn.dataset.filter === filter);
   });
   render();
 }
@@ -1091,9 +969,7 @@ function setViewMode(mode) {
   currentView = mode;
   const buttons = { grid: 'viewGridBtn', kanban: 'viewKanbanBtn', notes: 'viewNotesBtn' };
   Object.entries(buttons).forEach(([key, id]) => {
-    document.getElementById(id).className = key === mode
-      ? "p-1.5 rounded text-xs transition bg-indigo-600 text-white shadow"
-      : "p-1.5 rounded text-xs transition text-slate-400 hover:text-white";
+    document.getElementById(id).classList.toggle('active', key === mode);
   });
   render();
 }
@@ -1161,13 +1037,7 @@ function importData(event) {
 /* ==========================================================================
    12. Idea Sticky Notes
    ========================================================================== */
-const NOTE_COLORS = [
-  'bg-amber-200 text-amber-950',
-  'bg-pink-200 text-pink-950',
-  'bg-emerald-200 text-emerald-950',
-  'bg-sky-200 text-sky-950',
-  'bg-violet-200 text-violet-950'
-];
+const NOTE_COLORS = ['note-yellow', 'note-pink', 'note-lime', 'note-orange', 'note-sky'];
 
 function saveNotes() {
   try {
@@ -1201,25 +1071,18 @@ function addNotesFromPaste() {
 function renderNotes() {
   const grid = document.getElementById('notesGrid');
   if (notes.length === 0) {
-    grid.innerHTML = '<div class="col-span-full py-12 text-center text-xs text-slate-500">No sticky notes yet. Paste your ideas above.</div>';
+    grid.innerHTML = '<div class="notes-empty">No sticky notes yet. Paste your ideas above.</div>';
     return;
   }
   grid.innerHTML = notes.map(n => `
-    <div class="${NOTE_COLORS[n.color % NOTE_COLORS.length]} rounded-lg p-3 shadow-lg shadow-black/30 flex flex-col min-h-[140px] rotate-[-0.5deg] hover:rotate-0 transition">
-      <textarea
-        onchange="updateNoteText('${n.id}', this.value)"
-        class="flex-1 w-full bg-transparent resize-none text-sm font-semibold leading-snug focus:outline-none placeholder-black/40"
-        rows="4"
-        placeholder="Write an idea..."
-      >${escapeHtml(n.text)}</textarea>
-      <div class="flex items-center justify-between pt-2 mt-1 border-t border-black/10 text-black/60">
-        <button onclick="noteToProject('${n.id}')" title="Turn into a project card (Idea stage)" class="text-[11px] font-semibold hover:text-black flex items-center gap-1">
-          <i class="ph-bold ph-arrow-circle-up-right text-sm"></i> Make App
-        </button>
-        <div class="flex items-center gap-1">
-          <button onclick="cycleNoteColor('${n.id}')" title="Change color" class="p-1 rounded hover:bg-black/10 hover:text-black"><i class="ph-bold ph-palette text-sm"></i></button>
-          <button onclick="deleteNote('${n.id}')" title="Delete note" class="p-1 rounded hover:bg-black/10 hover:text-black"><i class="ph-bold ph-trash text-sm"></i></button>
-        </div>
+    <div class="note ${NOTE_COLORS[n.color % NOTE_COLORS.length]}">
+      <textarea rows="4" placeholder="Write an idea..." onchange="updateNoteText('${n.id}', this.value)">${escapeHtml(n.text)}</textarea>
+      <div class="note-foot">
+        <button onclick="noteToProject('${n.id}')" title="Turn into an app card (Idea stage)"><i class="ph-bold ph-arrow-circle-up-right"></i> Make app</button>
+        <span>
+          <button onclick="cycleNoteColor('${n.id}')" title="Change color"><i class="ph-bold ph-palette"></i></button>
+          <button onclick="deleteNote('${n.id}')" title="Delete note"><i class="ph-bold ph-trash"></i></button>
+        </span>
       </div>
     </div>
   `).join('');
@@ -1302,23 +1165,23 @@ function renderLogins() {
   const list = document.getElementById('loginsList');
   const logins = (proj && proj.logins) || [];
   if (logins.length === 0) {
-    list.innerHTML = '<div class="text-xs text-slate-500 italic">No logins saved for this app yet.</div>';
+    list.innerHTML = '<div class="hint">No logins saved for this app yet.</div>';
     return;
   }
   list.innerHTML = logins.map(l => {
     const shown = revealedLogins.has(l.id);
     return `
-      <div class="grid grid-cols-12 gap-2 items-center p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-xs">
-        <div class="col-span-12 sm:col-span-5 min-w-0 flex items-center gap-1.5">
-          <span class="font-mono text-slate-200 truncate" title="${escapeHtml(l.username)}">${escapeHtml(l.username)}</span>
-          <button onclick="copyLoginField('${l.id}', 'username')" title="Copy username" class="text-slate-500 hover:text-white p-0.5 flex-shrink-0"><i class="ph ph-copy text-sm"></i></button>
+      <div class="login-row">
+        <div class="cell">
+          <span class="mono" title="${escapeHtml(l.username)}">${escapeHtml(l.username)}</span>
+          <button class="icon-btn" onclick="copyLoginField('${l.id}', 'username')" title="Copy username"><i class="ph-bold ph-copy"></i></button>
         </div>
-        <div class="col-span-5 sm:col-span-3 min-w-0 text-slate-400 truncate" title="${escapeHtml(l.role)}">${escapeHtml(l.role || '-')}</div>
-        <div class="col-span-7 sm:col-span-4 min-w-0 flex items-center justify-end gap-1">
-          <span class="font-mono text-slate-200 truncate">${shown ? escapeHtml(l.password) : (l.password ? '••••••••' : '-')}</span>
-          <button onclick="toggleLoginReveal('${l.id}')" title="${shown ? 'Hide' : 'Show'} password" class="text-slate-500 hover:text-white p-0.5 flex-shrink-0"><i class="ph ${shown ? 'ph-eye-slash' : 'ph-eye'} text-sm"></i></button>
-          <button onclick="copyLoginField('${l.id}', 'password')" title="Copy password" class="text-slate-500 hover:text-white p-0.5 flex-shrink-0"><i class="ph ph-copy text-sm"></i></button>
-          <button onclick="deleteLogin('${l.id}')" title="Remove login" class="text-slate-500 hover:text-rose-400 p-0.5 flex-shrink-0"><i class="ph ph-trash text-sm"></i></button>
+        <div class="role" title="${escapeHtml(l.role)}">${escapeHtml(l.role || '-')}</div>
+        <div class="cell end">
+          <span class="mono">${shown ? escapeHtml(l.password) : (l.password ? '••••••••' : '-')}</span>
+          <button class="icon-btn" onclick="toggleLoginReveal('${l.id}')" title="${shown ? 'Hide' : 'Show'} password"><i class="ph-bold ${shown ? 'ph-eye-slash' : 'ph-eye'}"></i></button>
+          <button class="icon-btn" onclick="copyLoginField('${l.id}', 'password')" title="Copy password"><i class="ph-bold ph-copy"></i></button>
+          <button class="icon-btn danger" onclick="deleteLogin('${l.id}')" title="Remove login"><i class="ph-bold ph-trash"></i></button>
         </div>
       </div>
     `;
@@ -1389,18 +1252,16 @@ function deleteLogin(loginId) {
 const THEME_KEY = 'alpize_solution_theme';
 
 function applyTheme(theme) {
-  const root = document.documentElement;
-  root.classList.remove('dark', 'light');
-  root.classList.add(theme);
-  document.querySelector('meta[name="theme-color"]').setAttribute('content', theme === 'light' ? '#f8fafc' : '#0f172a');
+  document.documentElement.classList.toggle('dark', theme === 'dark');
+  document.querySelector('meta[name="theme-color"]').setAttribute('content', theme === 'dark' ? '#0a0a0a' : '#111111');
   const icon = document.getElementById('themeToggleIcon');
   const btn = document.getElementById('themeToggleBtn');
-  if (icon) icon.className = `ph-bold ${theme === 'light' ? 'ph-moon' : 'ph-sun'} text-lg`;
-  if (btn) btn.title = theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme';
+  if (icon) icon.className = `ph-bold ${theme === 'dark' ? 'ph-sun' : 'ph-moon'}`;
+  if (btn) btn.title = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
 }
 
 function toggleTheme() {
-  const next = document.documentElement.classList.contains('light') ? 'dark' : 'light';
+  const next = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
   applyTheme(next);
   try {
     localStorage.setItem(THEME_KEY, next);
@@ -1413,13 +1274,10 @@ function toggleTheme() {
 let toastTimer;
 function showToast(msg) {
   const toast = document.getElementById('toast');
-  const text = document.getElementById('toastMsg');
-  text.innerText = msg;
-  toast.classList.remove('opacity-0', 'translate-y-20', 'pointer-events-none');
+  document.getElementById('toastMsg').innerText = msg;
+  toast.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    toast.classList.add('opacity-0', 'translate-y-20', 'pointer-events-none');
-  }, 3200);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
 }
 
 function escapeHtml(str) {
@@ -1441,7 +1299,7 @@ window.addEventListener('keydown', (e) => {
 
 window.onload = function() {
   updateNetworkStatus();
-  applyTheme(document.documentElement.classList.contains('light') ? 'light' : 'dark');
+  applyTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light');
   loadData();
 };
   

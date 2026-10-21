@@ -1,332 +1,202 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ALPIZE SOLUTION - App &amp; Project Tracker</title>
   <meta name="description" content="ALPIZE SOLUTION offline-first app and project tracker.">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#111111">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="ALPIZE">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="light.css">
   <script>
-    // Apply the saved theme before the page paints.
+    // Apply the saved theme before the page paints. Cream (light) is the default.
     try {
-      if (localStorage.getItem('alpize_solution_theme') === 'light') {
-        document.documentElement.classList.replace('dark', 'light');
+      if (localStorage.getItem('alpize_solution_theme') === 'dark') {
+        document.documentElement.classList.add('dark');
       }
     } catch (e) {}
   </script>
 
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              400: '#818cf8',
-              500: '#6366f1',
-              600: '#4f46e5',
-            }
-          }
-        }
-      }
-    };
-  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Lexend:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="styles.css">
 
   <!-- Phosphor Icons -->
-  <script src="https://unpkg.com/@phosphor-icons/web"></script>
-
-  <style>
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #090d16;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #1e293b;
-      border-radius: 4px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #334155;
-    }
-    /* Stage colors on project tiles: a colored top edge plus a light tint. */
-    .stage-idea { --stage-rgb: 168, 85, 247; }
-    .stage-prototype { --stage-rgb: 59, 130, 246; }
-    .stage-mvp { --stage-rgb: 99, 102, 241; }
-    .stage-testing { --stage-rgb: 245, 158, 11; }
-    .stage-live { --stage-rgb: 16, 185, 129; }
-    .stage-paused { --stage-rgb: 244, 63, 94; }
-    .stage-tile { --stage-tint: 0.12; }
-    .stage-column { --stage-tint: 0.05; }
-    html.light .stage-tile { --stage-tint: 0.09; }
-    html.light .stage-column { --stage-tint: 0.04; }
-    .stage-tile[class*="stage-"] {
-      border-top: 4px solid rgb(var(--stage-rgb, 100, 116, 139)) !important;
-      background-image: linear-gradient(rgba(var(--stage-rgb, 100, 116, 139), var(--stage-tint)), rgba(var(--stage-rgb, 100, 116, 139), var(--stage-tint)));
-    }
-
-    /* Readability: lift the dimmest slate text to at least 4.5:1 contrast on dark surfaces. */
-    html:not(.light) .text-slate-500 { color: #94a3b8; }
-    html:not(.light) .text-slate-600 { color: #8592a6; }
-
-    .custom-checkbox:checked {
-      background-color: #6366f1;
-      border-color: #6366f1;
-    }
-    .drag-over {
-      outline: 2px dashed #6366f1;
-      outline-offset: -2px;
-      background-color: rgba(99, 102, 241, 0.08) !important;
-    }
-  </style>
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased selection:bg-indigo-500 selection:text-white flex flex-col justify-between">
+<body>
 
-  <!-- Top Announcement / Offline Bar -->
-  <div id="offlineBanner" class="hidden bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-center text-xs font-medium text-amber-300 flex items-center justify-center gap-2">
-    <i class="ph-bold ph-wifi-slash text-sm"></i>
-    <span>Working offline. All changes are saved locally to your device and will persist automatically.</span>
+  <div id="offlineBanner" class="offline-banner hidden">
+    <i class="ph-bold ph-wifi-slash"></i>
+    Working offline. Changes are saved on this device and will stay put.
   </div>
 
-  <!-- Header -->
-  <header class="border-b border-slate-800/80 bg-slate-900/70 backdrop-blur sticky top-0 z-30">
-    <div class="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-      
-      <!-- Brand & Offline Pill -->
-      <div class="flex items-center gap-3">
-        <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-400 flex items-center justify-center text-white shadow-lg shadow-indigo-600/30 flex-shrink-0">
-          <span class="font-extrabold text-lg leading-none">A</span>
-        </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-1.5">
-              ALPIZE SOLUTION
-            </h1>
-            <span class="text-[11px] font-semibold uppercase tracking-wider bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 px-2 py-0.5 rounded-full">PWA</span>
-            <div id="networkStatusBadge" class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span id="networkStatusText" class="hidden sm:inline">Online</span>
-            </div>
-          </div>
-          <p class="text-xs text-slate-400 hidden md:block">App &amp; Project Tracker</p>
-        </div>
-      </div>
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="wrap">
+      <a class="logo" href="./" aria-label="ALPIZE SOLUTION home">
+        <img src="icons/icon.svg" alt="">
+        <span class="logo-text">ALPIZE <span>SOLUTION</span></span>
+      </a>
 
-      <!-- Action Buttons -->
-      <div class="flex items-center gap-2">
-        <!-- Native PWA Install Button (intercepted) -->
-        <button id="pwaInstallBtn" onclick="installPWA()" class="hidden px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs sm:text-sm transition shadow-lg shadow-emerald-600/25 flex items-center gap-1.5">
-          <i class="ph-bold ph-download-simple text-base"></i>
-          <span>Install PC App</span>
+      <nav class="nav" aria-label="Main">
+        <span id="networkStatusBadge" class="net-pill"><span class="dot"></span><span id="networkStatusText">Online</span></span>
+
+        <button id="viewGridBtn" class="nav-link active" onclick="setViewMode('grid')" title="Card view">
+          <i class="ph-bold ph-squares-four"></i><span class="nav-label">Cards</span>
+        </button>
+        <button id="viewKanbanBtn" class="nav-link" onclick="setViewMode('kanban')" title="Kanban board">
+          <i class="ph-bold ph-kanban"></i><span class="nav-label">Kanban</span>
+        </button>
+        <button id="viewNotesBtn" class="nav-link" onclick="setViewMode('notes')" title="Idea sticky notes">
+          <i class="ph-bold ph-note"></i><span class="nav-label">Ideas</span>
         </button>
 
-        <!-- Theme Toggle -->
-        <button id="themeToggleBtn" onclick="toggleTheme()" title="Switch to light theme" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition text-sm flex items-center">
-          <i id="themeToggleIcon" class="ph-bold ph-sun text-lg"></i>
+        <button id="pwaInstallBtn" onclick="installPWA()" class="btn btn-lime btn-sm hidden">
+          <i class="ph-bold ph-download-simple"></i> Install
         </button>
 
-        <!-- View Switcher -->
-        <div class="bg-slate-800/80 border border-slate-700/60 p-0.5 rounded-lg flex items-center">
-          <button id="viewGridBtn" onclick="setViewMode('grid')" title="Card Grid View" class="p-1.5 rounded text-xs transition bg-indigo-600 text-white shadow">
-            <i class="ph-bold ph-squares-four text-base"></i>
-          </button>
-          <button id="viewKanbanBtn" onclick="setViewMode('kanban')" title="Kanban Board View" class="p-1.5 rounded text-xs transition text-slate-400 hover:text-white">
-            <i class="ph-bold ph-kanban text-base"></i>
-          </button>
-          <button id="viewNotesBtn" onclick="setViewMode('notes')" title="Idea Sticky Notes" class="p-1.5 rounded text-xs transition text-slate-400 hover:text-white">
-            <i class="ph-bold ph-note text-base"></i>
-          </button>
-        </div>
+        <button id="themeToggleBtn" class="nav-icon" onclick="toggleTheme()" title="Switch to dark theme">
+          <i id="themeToggleIcon" class="ph-bold ph-moon"></i>
+        </button>
 
-        <!-- Backup & Actions Menu -->
-        <div class="relative">
-          <button onclick="toggleActionMenu()" id="actionMenuBtn" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition text-sm flex items-center gap-1">
-            <i class="ph ph-dots-three-vertical text-lg"></i>
+        <div class="menu-wrap">
+          <button id="actionMenuBtn" class="nav-icon" onclick="toggleActionMenu()" title="Backup and more">
+            <i class="ph-bold ph-dots-three-vertical"></i>
           </button>
-          <div id="actionDropdown" class="hidden absolute right-0 mt-2 w-52 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl z-40 py-1.5 text-xs">
-            <button onclick="exportData(); toggleActionMenu();" class="w-full text-left px-3.5 py-2 hover:bg-slate-800 flex items-center gap-2 text-slate-300 hover:text-white">
-              <i class="ph ph-download-simple text-base text-indigo-400"></i> Export JSON Backup
-            </button>
-            <label class="w-full text-left px-3.5 py-2 hover:bg-slate-800 flex items-center gap-2 text-slate-300 hover:text-white cursor-pointer">
-              <i class="ph ph-upload-simple text-base text-indigo-400"></i> Import JSON Backup
+          <div id="actionDropdown" class="menu hidden">
+            <button onclick="exportData(); toggleActionMenu();"><i class="ph-bold ph-download-simple"></i> Export JSON backup</button>
+            <label>
+              <i class="ph-bold ph-upload-simple"></i> Import JSON backup
               <input type="file" id="importInput" accept=".json" class="hidden" onchange="importData(event); toggleActionMenu();">
             </label>
-            <button onclick="loadTemplateSeed(); toggleActionMenu();" class="w-full text-left px-3.5 py-2 hover:bg-slate-800 flex items-center gap-2 text-slate-300 hover:text-white">
-              <i class="ph ph-sparkle text-base text-amber-400"></i> Reset to ALPIZE Projects
-            </button>
-            <div class="border-t border-slate-800 my-1"></div>
-            <button onclick="clearAllData(); toggleActionMenu();" class="w-full text-left px-3.5 py-2 hover:bg-rose-950/40 text-rose-400 flex items-center gap-2">
-              <i class="ph ph-trash text-base"></i> Clear All Projects
-            </button>
+            <button onclick="loadTemplateSeed(); toggleActionMenu();"><i class="ph-bold ph-arrow-counter-clockwise"></i> Reset to ALPIZE projects</button>
+            <hr>
+            <button class="danger" onclick="clearAllData(); toggleActionMenu();"><i class="ph-bold ph-trash"></i> Clear all projects</button>
           </div>
         </div>
 
-        <!-- Add New App -->
-        <button onclick="openModal()" class="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs sm:text-sm transition shadow-lg shadow-indigo-600/25 flex items-center gap-1.5">
-          <i class="ph-bold ph-plus text-base"></i>
-          <span class="hidden sm:inline">New App</span>
+        <button class="btn btn-pink" onclick="openModal()">
+          <i class="ph-bold ph-plus"></i> New App
         </button>
-      </div>
+      </nav>
     </div>
   </header>
 
-  <!-- Main Container -->
-  <main class="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1">
-    
-    <!-- Aggregate Stats Strip -->
-    <section class="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-6">
-      <div class="p-3.5 sm:p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur">
-        <div class="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">
-          <span>Total Apps</span>
-          <i class="ph ph-stack text-lg text-slate-400"></i>
-        </div>
-        <div id="statTotal" class="text-2xl font-bold text-white">0</div>
-        <div class="text-[11px] text-slate-500 mt-0.5">Tracked portfolio</div>
-      </div>
+  <main class="wrap" style="flex: 1;">
 
-      <div class="p-3.5 sm:p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur">
-        <div class="flex items-center justify-between text-indigo-400 text-xs font-semibold uppercase tracking-wider mb-1">
-          <span>In Progress</span>
-          <i class="ph ph-hammer text-lg text-indigo-400"></i>
-        </div>
-        <div id="statWIP" class="text-2xl font-bold text-indigo-300">0</div>
-        <div class="text-[11px] text-slate-500 mt-0.5">Idea, Prototype & MVP</div>
-      </div>
+    <!-- Hero -->
+    <section class="hero">
+      <span class="tag">Your apps. Every stage. One board.</span>
+      <h1>Every <span class="hl-box">app</span> I'm <span class="hl-mark">building</span></h1>
+      <p class="lead">From first idea to live launch. Track progress, next steps, links and logins for every ALPIZE SOLUTION app. Saved on your device and works offline.</p>
 
-      <div class="p-3.5 sm:p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur">
-        <div class="flex items-center justify-between text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-1">
-          <span>Shipped & Live</span>
-          <i class="ph ph-rocket-launch text-lg text-emerald-400"></i>
-        </div>
-        <div id="statLive" class="text-2xl font-bold text-emerald-400">0</div>
-        <div class="text-[11px] text-slate-500 mt-0.5">Production deployments</div>
-      </div>
+      <div class="sticker sticker-circle"><div><b id="stickerTotal">0</b>apps in the works</div></div>
+      <div class="sticker sticker-tag"><div><span id="stickerLive">0</span> live &amp; kicking 🚀</div></div>
+    </section>
 
-      <div class="p-3.5 sm:p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur">
-        <div class="flex items-center justify-between text-rose-400 text-xs font-semibold uppercase tracking-wider mb-1">
-          <span>Blocked / Paused</span>
-          <i class="ph ph-warning-circle text-lg text-rose-400"></i>
-        </div>
-        <div id="statPaused" class="text-2xl font-bold text-rose-400">0</div>
-        <div class="text-[11px] text-slate-500 mt-0.5">Needs unblocking or review</div>
+    <!-- Stats -->
+    <section class="stats">
+      <div class="stat">
+        <div class="stat-head"><span>Total apps</span><i class="ph-bold ph-stack"></i></div>
+        <div id="statTotal" class="stat-num">0</div>
+        <div class="stat-sub">Tracked portfolio</div>
+      </div>
+      <div class="stat yellow">
+        <div class="stat-head"><span>In progress</span><i class="ph-bold ph-hammer"></i></div>
+        <div id="statWIP" class="stat-num">0</div>
+        <div class="stat-sub">Idea, Prototype &amp; MVP</div>
+      </div>
+      <div class="stat lime">
+        <div class="stat-head"><span>Shipped &amp; live</span><i class="ph-bold ph-rocket-launch"></i></div>
+        <div id="statLive" class="stat-num">0</div>
+        <div class="stat-sub">Production deployments</div>
+      </div>
+      <div class="stat pink">
+        <div class="stat-head"><span>Blocked / paused</span><i class="ph-bold ph-warning-circle"></i></div>
+        <div id="statPaused" class="stat-num">0</div>
+        <div class="stat-sub">Needs unblocking or review</div>
       </div>
     </section>
 
-    <!-- Filters, Search & Categories -->
-    <div id="filterBar" class="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between mb-6 pb-4 border-b border-slate-800/60">
-      
-      <!-- Stage Filter Pills -->
-      <div class="flex items-center gap-1.5 overflow-x-auto pb-2 md:pb-0" id="filterContainer">
-        <button onclick="setFilter('all')" data-filter="all" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white transition whitespace-nowrap">All</button>
-        <button onclick="setFilter('Idea')" data-filter="Idea" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition whitespace-nowrap">Idea</button>
-        <button onclick="setFilter('Prototype')" data-filter="Prototype" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition whitespace-nowrap">Prototype</button>
-        <button onclick="setFilter('MVP')" data-filter="MVP" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition whitespace-nowrap">MVP</button>
-        <button onclick="setFilter('Testing/Review')" data-filter="Testing/Review" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition whitespace-nowrap">Testing</button>
-        <button onclick="setFilter('Shipped/Live')" data-filter="Shipped/Live" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition whitespace-nowrap">Live</button>
-        <button onclick="setFilter('Paused/Blocked')" data-filter="Paused/Blocked" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition whitespace-nowrap">Blocked</button>
+    <!-- Search & filters -->
+    <section id="filterBar" class="panel">
+      <div class="panel-row">
+        <div class="search-box">
+          <label for="searchInput" class="sr-only">Search apps</label>
+          <input type="text" id="searchInput" class="field" placeholder="Search by name, stack, next step..." oninput="handleSearch(this.value)">
+          <button id="clearSearchBtn" class="icon-btn clear hidden" onclick="clearSearch()" title="Clear search"><i class="ph-bold ph-x"></i></button>
+        </div>
+        <button class="btn btn-pink" onclick="openModal()"><i class="ph-bold ph-plus"></i> Add app</button>
       </div>
+      <div class="filters" id="filterContainer">
+        <span class="filters-label">Stage:</span>
+        <button onclick="setFilter('all')" data-filter="all" class="pill filter-btn active">All</button>
+        <button onclick="setFilter('Idea')" data-filter="Idea" class="pill filter-btn">Idea 💡</button>
+        <button onclick="setFilter('Prototype')" data-filter="Prototype" class="pill filter-btn">Prototype 🧪</button>
+        <button onclick="setFilter('MVP')" data-filter="MVP" class="pill filter-btn">MVP 🔨</button>
+        <button onclick="setFilter('Testing/Review')" data-filter="Testing/Review" class="pill filter-btn">Testing 🔍</button>
+        <button onclick="setFilter('Shipped/Live')" data-filter="Shipped/Live" class="pill filter-btn">Live 🚀</button>
+        <button onclick="setFilter('Paused/Blocked')" data-filter="Paused/Blocked" class="pill filter-btn">Blocked ⛔</button>
+      </div>
+    </section>
 
-      <!-- Search Input -->
-      <div class="relative w-full md:w-80">
-        <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
-        <input 
-          type="text" 
-          id="searchInput" 
-          placeholder="Filter by title, stack, notes..." 
-          oninput="handleSearch(this.value)"
-          class="w-full pl-9 pr-8 py-2 rounded-lg bg-slate-900 border border-slate-800 text-xs sm:text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition"
-        >
-        <button id="clearSearchBtn" onclick="clearSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
-          <i class="ph-bold ph-x text-xs"></i>
-        </button>
-      </div>
+    <!-- Views -->
+    <div id="gridView" class="grid"></div>
+
+    <div id="kanbanView" class="kanban-scroll hidden">
+      <div class="kanban" id="kanbanColumnsContainer"></div>
     </div>
 
-    <!-- Active View Area -->
-    <div id="gridView" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
-      <!-- Injected by JS -->
-    </div>
-
-    <div id="kanbanView" class="hidden overflow-x-auto pb-6">
-      <div class="grid grid-cols-6 gap-3 min-w-[1100px]" id="kanbanColumnsContainer">
-        <!-- Injected by JS -->
-      </div>
-    </div>
-
-    <!-- Idea Sticky Notes -->
     <div id="notesView" class="hidden">
-      <div class="mb-5 p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80">
-        <label for="notesPasteInput" class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Paste ideas (one per line)</label>
-        <textarea id="notesPasteInput" rows="3" placeholder="IPON CHECKLIST&#10;PAGIBIG LOAN TRACKER&#10;DORM APP" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500"></textarea>
-        <div class="mt-2 flex items-center justify-between gap-3">
-          <span class="text-[11px] text-slate-500">Each line becomes its own sticky note. Click a note to edit it.</span>
-          <button onclick="addNotesFromPaste()" class="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs sm:text-sm transition flex items-center gap-1.5 flex-shrink-0">
-            <i class="ph-bold ph-plus text-base"></i> Add Notes
-          </button>
+      <div class="notes-input">
+        <label for="notesPasteInput" class="label">Paste ideas (one per line)</label>
+        <textarea id="notesPasteInput" rows="3" class="textarea" placeholder="IPON CHECKLIST&#10;PAGIBIG LOAN TRACKER&#10;DORM APP"></textarea>
+        <div class="row">
+          <span class="hint">Each line becomes its own sticky note. Click a note to edit it.</span>
+          <button class="btn btn-lime" onclick="addNotesFromPaste()"><i class="ph-bold ph-plus"></i> Add notes</button>
         </div>
       </div>
-      <div id="notesGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
-        <!-- Injected by JS -->
-      </div>
+      <div id="notesGrid" class="notes-grid"></div>
     </div>
 
-    <!-- Empty State -->
-    <div id="emptyState" class="hidden py-16 text-center max-w-sm mx-auto">
-      <div class="h-16 w-16 mx-auto rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500 mb-4 shadow-inner">
-        <i class="ph ph-folder-open text-3xl"></i>
-      </div>
-      <h3 class="text-base font-semibold text-slate-200">No applications match</h3>
-      <p class="text-xs text-slate-500 mt-1 mb-4">Try clearing your filters or create a new app card to monitor.</p>
-      <button onclick="openModal()" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition inline-flex items-center gap-1.5">
-        <i class="ph-bold ph-plus"></i> Add New App
-      </button>
+    <div id="emptyState" class="empty hidden">
+      <div class="big">🫥</div>
+      <h3>No apps match</h3>
+      <p class="hint">Try another search or stage, or add a new app.</p>
+      <button class="btn btn-pink" onclick="openModal()"><i class="ph-bold ph-plus"></i> Add new app</button>
     </div>
-
   </main>
 
-  <!-- Notification Toast -->
-  <div id="toast" class="fixed bottom-6 right-6 transform translate-y-20 opacity-0 pointer-events-none transition-all duration-300 z-50 bg-slate-800/95 backdrop-blur border border-slate-700 text-slate-200 text-xs sm:text-sm px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 max-w-sm">
-    <i class="ph-fill ph-check-circle text-emerald-400 text-lg flex-shrink-0" id="toastIcon"></i>
-    <span id="toastMsg">Action completed successfully</span>
+  <!-- Toast -->
+  <div id="toast" class="toast" role="status" aria-live="polite">
+    <i class="ph-fill ph-check-circle"></i>
+    <span id="toastMsg">Done</span>
   </div>
 
-  <!-- Add/Edit Modal Dialog -->
-  <div id="projectModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 hidden">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
-      
-      <!-- Modal Header -->
-      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-        <h3 id="modalTitle" class="text-base font-bold text-white flex items-center gap-2">
-          <i class="ph-bold ph-plus-circle text-indigo-400"></i> New Application
-        </h3>
-        <button onclick="closeModal()" class="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800 transition">
-          <i class="ph-bold ph-x text-lg"></i>
-        </button>
+  <!-- Add / Edit modal -->
+  <div id="projectModal" class="overlay hidden">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-head">
+        <h3 id="modalTitle"><i class="ph-bold ph-plus-circle"></i> New app</h3>
+        <button class="icon-btn" onclick="closeModal()" title="Close"><i class="ph-bold ph-x"></i></button>
       </div>
-
-      <!-- Modal Body -->
-      <form id="projectForm" onsubmit="saveProject(event)" class="px-6 py-5 overflow-y-auto space-y-4">
+      <form id="projectForm" onsubmit="saveProject(event)" class="modal-body">
         <input type="hidden" id="projectId">
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div class="sm:col-span-2">
-            <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">App Title *</label>
-            <input type="text" id="formName" required placeholder="e.g. SupaNotes, CodeSnippet CLI" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+        <div class="form-grid cols-3">
+          <div>
+            <label class="label" for="formName">App name *</label>
+            <input type="text" id="formName" required class="field" placeholder="e.g. Ipon Checklist">
           </div>
           <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Platform / Type</label>
-            <select id="formPlatform" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+            <label class="label" for="formPlatform">Type</label>
+            <select id="formPlatform" class="select field">
               <option value="Web App">Web App</option>
               <option value="PWA">PWA</option>
               <option value="SaaS">SaaS</option>
@@ -340,14 +210,14 @@
         </div>
 
         <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Tagline / Short Pitch</label>
-          <input type="text" id="formDesc" placeholder="e.g. Real-time markdown workspace with offline local sync" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+          <label class="label" for="formDesc">Tagline</label>
+          <input type="text" id="formDesc" class="field" placeholder="One line on what it does">
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="form-grid cols-2">
           <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Status Stage</label>
-            <select id="formStage" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+            <label class="label" for="formStage">Stage</label>
+            <select id="formStage" class="select field">
               <option value="Idea">Idea (Planning)</option>
               <option value="Prototype">Prototype (PoC)</option>
               <option value="MVP">MVP (In Active Dev)</option>
@@ -357,84 +227,72 @@
             </select>
           </div>
           <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Next Priority / Blocker</label>
-            <input type="text" id="formAction" placeholder="e.g. Implement OAuth callback, Setup Stripe" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+            <label class="label" for="formAction">Next step / blocker</label>
+            <input type="text" id="formAction" class="field" placeholder="e.g. Set up payments">
           </div>
         </div>
 
         <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Tech Stack (comma-separated)</label>
-          <input type="text" id="formStack" placeholder="React, Tailwind, Supabase, Cloudflare Workers, Redis" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+          <label class="label" for="formStack">Tech stack (comma-separated)</label>
+          <input type="text" id="formStack" class="field" placeholder="React, Firebase, Tailwind">
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="form-grid cols-2">
           <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Live Production URL</label>
-            <input type="url" id="formLiveUrl" placeholder="https://mycoolapp.com" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+            <label class="label" for="formLiveUrl">Live website</label>
+            <input type="url" id="formLiveUrl" class="field" placeholder="https://myapp.com">
           </div>
           <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">GitHub / Repo URL</label>
-            <input type="url" id="formRepoUrl" placeholder="https://github.com/username/repo" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+            <label class="label" for="formRepoUrl">GitHub repo</label>
+            <input type="url" id="formRepoUrl" class="field" placeholder="https://github.com/alpizesolution/repo">
           </div>
         </div>
 
-        <div class="pt-1">
-          <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Manual Progress Override (%)</label>
-          <input type="number" id="formManualProgress" min="0" max="100" placeholder="Auto-calculated by checklist if left empty" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+        <div>
+          <label class="label" for="formManualProgress">Progress override (%)</label>
+          <input type="number" id="formManualProgress" min="0" max="100" class="field" placeholder="Leave empty to use the checklist">
         </div>
 
-        <!-- Footer Actions -->
-        <div class="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">
-          <button type="button" onclick="closeModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs sm:text-sm transition">Cancel</button>
-          <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs sm:text-sm transition shadow-lg shadow-indigo-600/25">Save Application</button>
+        <div class="modal-foot">
+          <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+          <button type="submit" class="btn btn-pink">Save app</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Logins Modal -->
-  <div id="loginsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 hidden">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
-      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-        <h3 class="text-base font-bold text-white flex items-center gap-2">
-          <i class="ph-bold ph-key text-indigo-400"></i> <span id="loginsTitle">Logins</span>
-        </h3>
-        <button onclick="closeLogins()" class="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800 transition">
-          <i class="ph-bold ph-x text-lg"></i>
-        </button>
+  <!-- Logins modal -->
+  <div id="loginsModal" class="overlay hidden">
+    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="loginsTitle">
+      <div class="modal-head">
+        <h3><i class="ph-bold ph-key"></i> <span id="loginsTitle">Logins</span></h3>
+        <button class="icon-btn" onclick="closeLogins()" title="Close"><i class="ph-bold ph-x"></i></button>
       </div>
-      <div class="px-6 py-5 overflow-y-auto space-y-5">
-        <div class="text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 flex items-start gap-2">
-          <i class="ph-bold ph-lock-simple text-sm mt-0.5"></i>
+      <div class="modal-body">
+        <div class="warn">
+          <i class="ph-bold ph-lock-simple"></i>
           <span>Logins are saved only in this browser on this device. They are never uploaded. They are included in JSON backups, so keep backup files private.</span>
         </div>
 
-        <div id="loginsList" class="space-y-2">
-          <!-- Injected by JS -->
-        </div>
+        <div id="loginsList" style="display: flex; flex-direction: column; gap: 8px;"></div>
 
-        <div class="pt-4 border-t border-slate-800">
-          <label for="loginsPasteInput" class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Add logins (one per line: username, then role)</label>
-          <textarea id="loginsPasteInput" rows="4" placeholder="admin@myapp.local    Admin&#10;user@myapp.local    Student" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-200 placeholder-slate-600 font-mono focus:outline-none focus:border-indigo-500"></textarea>
-          <div class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <input type="text" id="loginsPasswordInput" autocomplete="off" placeholder="Password for these logins" class="sm:col-span-2 px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-200 placeholder-slate-600 font-mono focus:outline-none focus:border-indigo-500">
-            <button onclick="addLoginsFromPaste()" class="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs sm:text-sm transition flex items-center justify-center gap-1.5">
-              <i class="ph-bold ph-plus text-base"></i> Add Logins
-            </button>
+        <div style="border-top: 2px dashed var(--line); padding-top: 14px;">
+          <label for="loginsPasteInput" class="label">Add logins (one per line: username, then role)</label>
+          <textarea id="loginsPasteInput" rows="4" class="textarea chip-mono" placeholder="admin@myapp.local    Admin&#10;user@myapp.local    Student"></textarea>
+          <div class="paste-row" style="margin-top: 10px;">
+            <input type="text" id="loginsPasswordInput" autocomplete="off" class="field chip-mono" placeholder="Password for these logins">
+            <button class="btn btn-lime" onclick="addLoginsFromPaste()"><i class="ph-bold ph-plus"></i> Add logins</button>
           </div>
-          <p class="mt-1.5 text-[11px] text-slate-500">If the password is on its own line at the end of what you paste, it is picked up automatically.</p>
+          <p class="hint" style="margin: 8px 0 0;">If the password is on its own line at the end of what you paste, it is picked up automatically.</p>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Footer -->
-  <footer class="border-t border-slate-900 bg-slate-950/80 py-4 text-center text-xs text-slate-500">
-    <div class="max-w-[1920px] mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-      <span>&copy; ALPIZE SOLUTION &bull; Storage: <span id="storageIndicator" class="text-slate-400 font-mono">LocalStorage</span></span>
-      <span class="flex items-center gap-1.5">
-        <i class="ph-bold ph-shield-check text-emerald-400"></i> Offline-ready Service Worker active
-      </span>
+  <footer class="footer">
+    <div class="wrap">
+      <span>&copy; <b>ALPIZE SOLUTION</b> &bull; Saved in this browser</span>
+      <span><i class="ph-bold ph-shield-check"></i> Works offline</span>
     </div>
   </footer>
 
