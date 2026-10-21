@@ -1,23 +1,31 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { deleteDoc, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import type { Board } from '@/lib/types';
 import { sanitizeBoard } from '@/lib/sanitize';
 import { loadCloudCopy, loadLocalBoard, saveCloudCopy, saveLocalBoard } from '@/lib/local-store';
-import { getBrowserSupabase } from '@/lib/supabase/client';
+import { getDb } from '@/lib/firebase/client';
 
 export type SyncStatus = 'local' | 'loading' | 'saving' | 'saved' | 'error' | 'readonly';
 
 const EMPTY: Board = { projects: [], notes: [] };
 const SAVE_DELAY_MS = 800;
 
+function boardDoc(userId: string) {
+  const db = getDb();
+  return db ? doc(db, 'boards', userId) : null;
+}
+
 // Signed out: the board lives in this browser. Signed in: it lives in the
-// `boards` table (one row per user, protected by row-level security) and saves
-// a moment after each change. `onFirstSync` must be a stable function.
-export function useBoard(userId: string | null, onFirstSync: (localCount: number) => boolean) {
+// Firestore document boards/{uid} (only that user can read or write it, see
+// firestore.rules) and saves a moment after each change. The board is stored
+// as one JSON string so its shape never trips Firestore's nested-array limits.
+// `onFirstSync` must be a stable function.
+export function useBoard(userId: string | null, authReady: boolean, onFirstSync: (localCount: number) => boolean) {
   const [board, setBoardState] = useState<Board>(EMPTY);
   const [ready, setReady] = useState(false);
-  const [status, setStatus] = useState<SyncStatus>(userId ? 'loading' : 'local');
+  const [status, setStatus] = useState<SyncStatus>('loading');
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<Board | null>(null);
   // Cloud writes stay off until the cloud board has loaded, so a failed load
@@ -25,40 +33,56 @@ export function useBoard(userId: string | null, onFirstSync: (localCount: number
   const writable = useRef(false);
 
   const pushToCloud = useCallback(async (next: Board) => {
-    const supabase = getBrowserSupabase();
-    if (!supabase || !userId || !writable.current) return;
+    const ref = userId ? boardDoc(userId) : null;
+    if (!ref || !userId || !writable.current) return;
     setStatus('saving');
-    const { error } = await supabase.from('boards').upsert({ user_id: userId, data: next, updated_at: new Date().toISOString() });
+    try {
+      await setDoc(ref, { data: JSON.stringify(next), updatedAt: serverTimestamp() });
+      saveCloudCopy(userId, next);
+      setStatus('saved');
+    } catch (err) {
+      console.error('Sync failed:', err);
+      setStatus('error');
+    }
     if (pending.current === next) pending.current = null;
-    setStatus(error ? 'error' : 'saved');
-    if (error) console.error('Sync failed:', error.message);
-    else saveCloudCopy(userId, next);
   }, [userId]);
 
   useEffect(() => {
+    if (!authReady) return;
     let cancelled = false;
     async function load() {
+      writable.current = false;
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      pending.current = null;
       if (!userId) {
         setBoardState(loadLocalBoard());
+        setStatus('local');
         setReady(true);
         return;
       }
-      const supabase = getBrowserSupabase();
-      if (!supabase) return;
-      const { data, error } = await supabase.from('boards').select('data').eq('user_id', userId).maybeSingle();
-      if (cancelled) return;
-      if (error) {
+      setReady(false);
+      setStatus('loading');
+      const ref = boardDoc(userId);
+      if (!ref) return;
+      let raw: unknown = null;
+      let exists = false;
+      try {
+        const snap = await getDoc(ref);
+        exists = snap.exists();
+        raw = exists ? JSON.parse(String(snap.get('data') || '{}')) : null;
+      } catch {
+        if (cancelled) return;
         // Offline or the database is unreachable: show the last synced copy, read-only.
-        const copy = loadCloudCopy(userId);
-        if (copy) setBoardState(copy);
+        setBoardState(loadCloudCopy(userId) || EMPTY);
         setStatus('readonly');
         setReady(true);
         return;
       }
+      if (cancelled) return;
       writable.current = true;
-      let next = data ? sanitizeBoard(data.data) : EMPTY;
+      let next = exists ? sanitizeBoard(raw) : EMPTY;
       // First sign-in on this browser: offer to bring the signed-out board along.
-      if (!data) {
+      if (!exists) {
         const local = loadLocalBoard();
         if ((local.projects.length || local.notes.length) && onFirstSync(local.projects.length)) {
           next = local;
@@ -72,7 +96,7 @@ export function useBoard(userId: string | null, onFirstSync: (localCount: number
     }
     load();
     return () => { cancelled = true; };
-  }, [userId, pushToCloud, onFirstSync]);
+  }, [userId, authReady, pushToCloud, onFirstSync]);
 
   // Save whatever is still waiting if the tab is closed mid-delay.
   useEffect(() => {
@@ -102,13 +126,17 @@ export function useBoard(userId: string | null, onFirstSync: (localCount: number
   }, [userId, pushToCloud]);
 
   const deleteCloudBoard = useCallback(async () => {
-    const supabase = getBrowserSupabase();
-    if (!supabase || !userId) return false;
+    const ref = userId ? boardDoc(userId) : null;
+    if (!ref) return false;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     pending.current = null;
-    const { error } = await supabase.from('boards').delete().eq('user_id', userId);
-    if (!error) setBoardState(EMPTY);
-    return !error;
+    try {
+      await deleteDoc(ref);
+      setBoardState(EMPTY);
+      return true;
+    } catch {
+      return false;
+    }
   }, [userId]);
 
   return { board, setBoard, ready, status, deleteCloudBoard };

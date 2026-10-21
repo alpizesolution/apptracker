@@ -2,7 +2,7 @@
 
 Track every app you are building, from first idea to live launch. Anyone can use it in the browser without an account, or sign in with GitHub to pull in their repos and sync their board across devices.
 
-Built with Next.js (App Router) and Supabase, hosted on Vercel.
+Built with Next.js (App Router) and Firebase (Authentication + Firestore), hosted on Vercel.
 
 ## Features
 
@@ -20,13 +20,14 @@ Built with Next.js (App Router) and Supabase, hosted on Vercel.
 | Part | What it does |
 | --- | --- |
 | `app/page.tsx`, `components/` | The tracker UI (React client components) |
-| `components/useBoard.ts` | Loads and saves the board: browser storage when signed out, the `boards` table when signed in |
+| `components/useAccount.ts` | GitHub sign-in with Firebase Auth (popup) |
+| `components/useBoard.ts` | Loads and saves the board: browser storage when signed out, the Firestore document `boards/{uid}` when signed in |
 | `lib/sanitize.ts` | Checks everything that comes from outside (backups, database, GitHub). Only `http(s)` links are allowed |
-| `app/auth/callback` | Finishes GitHub sign-in and stores GitHub's token in an encrypted, HttpOnly cookie |
+| `app/api/session` | Checks a new sign-in (Firebase ID token + GitHub confirms the same account) and stores GitHub's token in an encrypted, HttpOnly cookie |
 | `app/api/github/repos` | Lists the repos the user shared with the GitHub App (server side, token never reaches the page) |
-| `proxy.ts` | Per-request Content Security Policy with a nonce, and keeps the sign-in session fresh |
+| `proxy.ts` | Per-request Content Security Policy with a nonce |
 | `next.config.ts` | Security headers (HSTS, frame blocking, referrer and permissions policy) |
-| `supabase/migrations/` | The `boards` table with row-level security, so each user can only reach their own row |
+| `firestore.rules` | Firestore security rules: each user can only read and write their own board |
 | `public/sw.js` | Offline support |
 
 App logins never leave the browser, even when signed in.
@@ -44,37 +45,33 @@ Checks: `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`. CI run
 
 ## Turn on GitHub sign-in and sync
 
-You need three things: a Supabase project, a GitHub App, and the Vercel project.
+You need three things: a Firebase project, a GitHub App, and the Vercel project.
 
-### 1. Supabase
+### 1. Firebase
 
-1. Create a project at [supabase.com](https://supabase.com) (the free tier is enough).
-2. Open **SQL Editor**, paste the contents of `supabase/migrations/0001_boards.sql`, and run it.
-3. Copy the **Project URL** and **anon public key** from **Project Settings → API**.
+1. Create a project at [console.firebase.google.com](https://console.firebase.google.com) (the free Spark plan is enough).
+2. **Build → Firestore Database → Create database** (production mode). Open the **Rules** tab, paste the contents of `firestore.rules`, and **Publish**.
+3. **Project settings → General → Your apps → Add app → Web**. Copy `apiKey`, `authDomain`, `projectId` and `appId` from the config it shows.
+4. **Build → Authentication → Get started → Sign-in method → GitHub**: turn it on. Copy the **callback URL** it shows (`https://<project>.firebaseapp.com/__/auth/handler`); you need it in the next step.
+5. **Authentication → Settings → Authorized domains**: add your Vercel domain (for example `apptracker.vercel.app`) and any custom domain.
 
 ### 2. GitHub App
 
 A GitHub App lets each person pick exactly which repos the tracker can see, read-only, instead of granting access to all their code.
 
 1. Go to **GitHub → Settings → Developer settings → GitHub Apps → New GitHub App** (create it under the `alpizesolution` organization if you want the org to own it).
-2. **Callback URL:** `https://<your-supabase-project>.supabase.co/auth/v1/callback`
+2. **Callback URL:** the Firebase callback URL from step 1.4.
 3. Check **Request user authorization (OAuth) during installation**.
 4. Turn off the **Webhook** (not needed).
 5. **Permissions:** Repository → *Metadata: Read-only*. Account → *Email addresses: Read-only*. Nothing else.
 6. **Where can this app be installed:** *Any account*, so other people can use it.
-7. Create the app, then **Generate a new client secret**. Note the **Client ID**, the secret, and the app's URL name (the `<slug>` in `github.com/apps/<slug>`).
+7. Create the app, then **Generate a new client secret**. Paste the **Client ID** and secret into Firebase's GitHub sign-in settings (step 1.4) and save. Note the app's URL name (the `<slug>` in `github.com/apps/<slug>`).
 
-### 3. Connect them
-
-1. In Supabase, **Authentication → Sign In / Providers → GitHub**: turn it on and paste the GitHub App's Client ID and secret.
-2. In Supabase, **Authentication → URL Configuration**: set **Site URL** to your Vercel address and add `https://<your-domain>/auth/callback` and `http://localhost:3000/auth/callback` to **Redirect URLs**.
-
-### 4. Vercel
+### 3. Vercel
 
 1. In [Vercel](https://vercel.com), **Add New → Project** and import `alpizesolution/apptracker`. The Next.js settings are detected automatically.
 2. Add these **Environment Variables** (see `.env.example`):
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID` (the Firebase web config is public by design; Firestore rules are what protect the data)
    - `NEXT_PUBLIC_GITHUB_APP_SLUG`
    - `TOKEN_SECRET` (random, 32+ characters: `openssl rand -base64 48`)
 3. Deploy. For local development, put the same values in `.env.local`.

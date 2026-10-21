@@ -12,21 +12,15 @@ import { STAGE_CONFIG, newId } from '@/lib/stages';
 import { allTech } from '@/lib/tech';
 import { extractLogins, isBackup, safeUrl, sanitizeBoard, sanitizeProject } from '@/lib/sanitize';
 import { findProjectForRepo, mergeRepo, projectFromRepo } from '@/lib/github';
-import { THEME_KEY, clearCloudCopy, loadLogins, saveLogins } from '@/lib/local-store';
-import { getBrowserSupabase } from '@/lib/supabase/client';
+import { THEME_KEY, loadLogins, saveLogins } from '@/lib/local-store';
 import { useBoard } from './useBoard';
+import { useAccount } from './useAccount';
 import ProjectCard, { type CardActions } from './ProjectCard';
 import KanbanBoard from './KanbanBoard';
 import NotesView from './NotesView';
 import ProjectModal, { type ProjectDraft } from './ProjectModal';
 import LoginsModal from './LoginsModal';
 import ReposModal from './ReposModal';
-
-export interface Account {
-  id: string;
-  login: string;
-  avatarUrl: string;
-}
 
 type View = 'grid' | 'kanban' | 'notes';
 type BeforeInstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
@@ -75,9 +69,10 @@ function download(filename: string, data: unknown) {
   URL.revokeObjectURL(url);
 }
 
-export default function Tracker({ account, cloudEnabled, githubAppSlug }: { account: Account | null; cloudEnabled: boolean; githubAppSlug: string }) {
+export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled: boolean; githubAppSlug: string }) {
   const { msg, show, toast } = useToast();
-  const { board, setBoard, ready, status, deleteCloudBoard } = useBoard(account?.id || null, askToCopyLocal);
+  const { account, ready: authReady, signIn: startSignIn, signOut } = useAccount(cloudEnabled);
+  const { board, setBoard, ready, status, deleteCloudBoard } = useBoard(account?.id || null, authReady, askToCopyLocal);
   const [logins, setLoginsState] = useState<LoginsByProject>(() => (typeof window === 'undefined' ? {} : loadLogins()));
   const [view, setView] = useState<View>('grid');
   const [filter, setFilter] = useState<Stage | 'all'>('all');
@@ -104,11 +99,6 @@ export default function Tracker({ account, cloudEnabled, githubAppSlug }: { acco
     window.addEventListener('beforeinstallprompt', beforeInstall);
     if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
       navigator.serviceWorker.register('/sw.js').catch(err => console.warn('Service worker not registered:', err));
-    }
-    const params = new URLSearchParams(location.search);
-    if (params.get('auth') === 'failed') {
-      toast('GitHub sign-in did not finish. Please try again.');
-      history.replaceState(null, '', '/');
     }
     return () => {
       window.removeEventListener('online', up);
@@ -273,10 +263,8 @@ export default function Tracker({ account, cloudEnabled, githubAppSlug }: { acco
   };
 
   const signIn = async () => {
-    const supabase = getBrowserSupabase();
-    if (!supabase) return;
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'github', options: { redirectTo: `${location.origin}/auth/callback` } });
-    if (error) toast('Could not start GitHub sign-in. Try again.');
+    const problem = await startSignIn();
+    if (problem) toast(problem);
   };
 
   const toggleTheme = () => {
@@ -361,11 +349,7 @@ export default function Tracker({ account, cloudEnabled, githubAppSlug }: { acco
                   <hr />
                   <button className="danger" onClick={() => { clearAll(); setMenuOpen(false); }}><TrashIcon /> Clear all projects</button>
                   {account && <button className="danger" onClick={() => { setMenuOpen(false); deleteCloud(); }}><ArrowCounterClockwiseIcon /> Delete my cloud data</button>}
-                  {account && (
-                    <form action="/auth/signout" method="post" onSubmit={() => clearCloudCopy(account.id)}>
-                      <button type="submit"><SignOutIcon /> Sign out</button>
-                    </form>
-                  )}
+                  {account && <button onClick={() => { setMenuOpen(false); signOut().then(() => toast('Signed out')); }}><SignOutIcon /> Sign out</button>}
                 </div>
               )}
               <input ref={importRef} type="file" accept=".json,application/json" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) importBoard(f); e.target.value = ''; }} />

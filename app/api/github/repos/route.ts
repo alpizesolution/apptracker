@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getUser } from '@/lib/supabase/server';
-import { GITHUB_TOKEN_COOKIE, openToken } from '@/lib/token-cookie';
+import { SESSION_COOKIE, openSession } from '@/lib/session';
 import { summarizeRepo } from '@/lib/github';
 import type { RepoSummary } from '@/lib/types';
 
@@ -57,13 +56,10 @@ async function listRepos(token: string): Promise<{ repos: RepoSummary[]; install
 }
 
 export async function GET() {
-  const user = await getUser();
-  if (!user) return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
+  const session = await openSession((await cookies()).get(SESSION_COOKIE)?.value);
+  if (!session) return NextResponse.json({ error: 'GitHub access expired. Sign out and sign in again.', reconnect: true }, { status: 401 });
 
-  const token = await openToken((await cookies()).get(GITHUB_TOKEN_COOKIE)?.value, user.id);
-  if (!token) return NextResponse.json({ error: 'GitHub access expired. Sign out and sign in again.', reconnect: true }, { status: 401 });
-
-  const result = await listRepos(token);
+  const result = await listRepos(session.githubToken);
   if ('status' in result) {
     const reconnect = result.status === 401;
     return NextResponse.json(

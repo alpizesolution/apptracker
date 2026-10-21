@@ -7,7 +7,8 @@ const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
-  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' }
+  // Firebase's GitHub sign-in popup needs to talk back to this page.
+  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' }
 ];
 
 const nextConfig: NextConfig = {
