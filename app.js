@@ -445,11 +445,13 @@ const DEFAULT_PROJECTS = [
 ];
 
 const STORAGE_KEY = 'alpize_solution_projects';
+const NOTES_KEY = 'alpize_solution_notes';
 
 let projects = [];
+let notes = [];
 let currentFilter = 'all';
 let searchQuery = '';
-let currentView = 'grid'; // 'grid' | 'kanban'
+let currentView = 'grid'; // 'grid' | 'kanban' | 'notes'
 
 /* ==========================================================================
    4. Local Storage & IndexedDB Fallback
@@ -466,6 +468,11 @@ function loadData() {
   } catch (e) {
     console.error("Storage error:", e);
     projects = DEFAULT_PROJECTS;
+  }
+  try {
+    notes = JSON.parse(localStorage.getItem(NOTES_KEY) || '[]');
+  } catch (e) {
+    notes = [];
   }
   render();
 }
@@ -526,6 +533,21 @@ function render() {
   const gridContainer = document.getElementById('gridView');
   const kanbanContainer = document.getElementById('kanbanView');
   const emptyState = document.getElementById('emptyState');
+  const notesView = document.getElementById('notesView');
+  const filterBar = document.getElementById('filterBar');
+
+  if (currentView === 'notes') {
+    gridContainer.classList.add('hidden');
+    kanbanContainer.classList.add('hidden');
+    emptyState.classList.add('hidden');
+    filterBar.classList.add('hidden');
+    notesView.classList.remove('hidden');
+    renderNotes();
+    updateStats();
+    return;
+  }
+  notesView.classList.add('hidden');
+  filterBar.classList.remove('hidden');
 
   let filtered = projects.filter(p => {
     if (currentFilter !== 'all' && p.stage !== currentFilter) {
@@ -705,6 +727,11 @@ function renderProjectCard(project, isCompact = false) {
               <span>Live App</span>
             </a>
           ` : ''}
+
+          <button onclick="openLogins('${project.id}')" title="Saved logins for this app" class="hover:text-white flex items-center gap-1 transition">
+            <i class="ph-bold ph-key text-sm text-amber-400"></i>
+            <span>Logins${(project.logins || []).length ? ` (${project.logins.length})` : ''}</span>
+          </button>
         </div>
 
         <!-- Quick Stage Changer Dropdown -->
@@ -927,6 +954,7 @@ function duplicateProject(id) {
   const copy = JSON.parse(JSON.stringify(proj));
   copy.id = 'proj_' + Date.now();
   copy.name = copy.name + ' (Copy)';
+  delete copy.logins;
   projects.unshift(copy);
   saveData();
   render();
@@ -1039,16 +1067,12 @@ function clearSearch() {
 
 function setViewMode(mode) {
   currentView = mode;
-  const gridBtn = document.getElementById('viewGridBtn');
-  const kanbanBtn = document.getElementById('viewKanbanBtn');
-
-  if (mode === 'grid') {
-    gridBtn.className = "p-1.5 rounded text-xs transition bg-indigo-600 text-white shadow";
-    kanbanBtn.className = "p-1.5 rounded text-xs transition text-slate-400 hover:text-white";
-  } else {
-    kanbanBtn.className = "p-1.5 rounded text-xs transition bg-indigo-600 text-white shadow";
-    gridBtn.className = "p-1.5 rounded text-xs transition text-slate-400 hover:text-white";
-  }
+  const buttons = { grid: 'viewGridBtn', kanban: 'viewKanbanBtn', notes: 'viewNotesBtn' };
+  Object.entries(buttons).forEach(([key, id]) => {
+    document.getElementById(id).className = key === mode
+      ? "p-1.5 rounded text-xs transition bg-indigo-600 text-white shadow"
+      : "p-1.5 rounded text-xs transition text-slate-400 hover:text-white";
+  });
   render();
 }
 
@@ -1070,7 +1094,7 @@ window.addEventListener('click', (e) => {
    11. JSON Export & Import Backups
    ========================================================================== */
 function exportData() {
-  const dataStr = JSON.stringify(projects, null, 2);
+  const dataStr = JSON.stringify({ projects, notes }, null, 2);
   const blob = new Blob([dataStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1091,13 +1115,18 @@ function importData(event) {
   reader.onload = function(e) {
     try {
       const parsed = JSON.parse(e.target.result);
-      if (Array.isArray(parsed)) {
-        projects = parsed;
+      // Older backups are a plain array of projects.
+      if (Array.isArray(parsed) || (parsed && Array.isArray(parsed.projects))) {
+        projects = Array.isArray(parsed) ? parsed : parsed.projects;
+        if (parsed.notes && Array.isArray(parsed.notes)) {
+          notes = parsed.notes;
+          saveNotes();
+        }
         saveData();
         render();
         showToast("Projects successfully restored from JSON");
       } else {
-        showToast("Invalid JSON schema: Root must be an array of projects");
+        showToast("Invalid backup file: no projects found");
       }
     } catch (err) {
       showToast("Failed to parse JSON backup file");
@@ -1108,7 +1137,232 @@ function importData(event) {
 }
 
 /* ==========================================================================
-   12. Utilities & Toast System
+   12. Idea Sticky Notes
+   ========================================================================== */
+const NOTE_COLORS = [
+  'bg-amber-200 text-amber-950',
+  'bg-pink-200 text-pink-950',
+  'bg-emerald-200 text-emerald-950',
+  'bg-sky-200 text-sky-950',
+  'bg-violet-200 text-violet-950'
+];
+
+function saveNotes() {
+  try {
+    localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+  } catch (err) {
+    console.error("Failed to save notes:", err);
+  }
+}
+
+function addNotesFromPaste() {
+  const input = document.getElementById('notesPasteInput');
+  const lines = input.value
+    .split(/\r?\n/)
+    .map(l => l.replace(/[|]+$/, '').trim())
+    .filter(Boolean);
+  if (lines.length === 0) return;
+
+  const stamp = Date.now();
+  const added = lines.map((text, i) => ({
+    id: `note_${stamp}_${i}`,
+    text,
+    color: (notes.length + i) % NOTE_COLORS.length
+  }));
+  notes = [...added, ...notes];
+  saveNotes();
+  input.value = '';
+  render();
+  showToast(`Added ${added.length} sticky note${added.length === 1 ? '' : 's'}`);
+}
+
+function renderNotes() {
+  const grid = document.getElementById('notesGrid');
+  if (notes.length === 0) {
+    grid.innerHTML = '<div class="col-span-full py-12 text-center text-xs text-slate-500">No sticky notes yet. Paste your ideas above.</div>';
+    return;
+  }
+  grid.innerHTML = notes.map(n => `
+    <div class="${NOTE_COLORS[n.color % NOTE_COLORS.length]} rounded-lg p-3 shadow-lg shadow-black/30 flex flex-col min-h-[140px] rotate-[-0.5deg] hover:rotate-0 transition">
+      <textarea
+        onchange="updateNoteText('${n.id}', this.value)"
+        class="flex-1 w-full bg-transparent resize-none text-sm font-semibold leading-snug focus:outline-none placeholder-black/40"
+        rows="4"
+        placeholder="Write an idea..."
+      >${escapeHtml(n.text)}</textarea>
+      <div class="flex items-center justify-between pt-2 mt-1 border-t border-black/10 text-black/60">
+        <button onclick="noteToProject('${n.id}')" title="Turn into a project card (Idea stage)" class="text-[11px] font-semibold hover:text-black flex items-center gap-1">
+          <i class="ph-bold ph-arrow-circle-up-right text-sm"></i> Make App
+        </button>
+        <div class="flex items-center gap-1">
+          <button onclick="cycleNoteColor('${n.id}')" title="Change color" class="p-1 rounded hover:bg-black/10 hover:text-black"><i class="ph-bold ph-palette text-sm"></i></button>
+          <button onclick="deleteNote('${n.id}')" title="Delete note" class="p-1 rounded hover:bg-black/10 hover:text-black"><i class="ph-bold ph-trash text-sm"></i></button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function updateNoteText(id, text) {
+  const note = notes.find(n => n.id === id);
+  if (!note) return;
+  note.text = text.trim();
+  saveNotes();
+}
+
+function cycleNoteColor(id) {
+  const note = notes.find(n => n.id === id);
+  if (!note) return;
+  note.color = (note.color + 1) % NOTE_COLORS.length;
+  saveNotes();
+  render();
+}
+
+function deleteNote(id) {
+  notes = notes.filter(n => n.id !== id);
+  saveNotes();
+  render();
+}
+
+function noteToProject(id) {
+  const note = notes.find(n => n.id === id);
+  if (!note || !note.text) return;
+  const [title, ...rest] = note.text.split(/\r?\n/);
+  projects.unshift({
+    id: 'proj_' + Date.now(),
+    name: title.trim(),
+    platform: 'Web App',
+    desc: rest.join(' ').trim(),
+    stage: 'Idea',
+    nextAction: 'Define scope and main features',
+    stack: [],
+    liveUrl: '',
+    repoUrl: '',
+    manualProgress: null,
+    milestones: [
+      { id: 'm_' + Date.now(), text: 'Architecture design & scaffolding', completed: false }
+    ]
+  });
+  notes = notes.filter(n => n.id !== id);
+  saveNotes();
+  saveData();
+  render();
+  showToast(`"${title.trim()}" added to your apps as an Idea`);
+}
+
+/* ==========================================================================
+   13. Per-App Logins (stored in this browser only)
+   ========================================================================== */
+let loginsProjectId = null;
+const revealedLogins = new Set();
+
+function openLogins(projectId) {
+  const proj = projects.find(p => p.id === projectId);
+  if (!proj) return;
+  loginsProjectId = projectId;
+  revealedLogins.clear();
+  document.getElementById('loginsTitle').innerText = `${proj.name} Logins`;
+  document.getElementById('loginsPasteInput').value = '';
+  document.getElementById('loginsPasswordInput').value = '';
+  renderLogins();
+  document.getElementById('loginsModal').classList.remove('hidden');
+}
+
+function closeLogins() {
+  document.getElementById('loginsModal').classList.add('hidden');
+  loginsProjectId = null;
+  revealedLogins.clear();
+  render();
+}
+
+function renderLogins() {
+  const proj = projects.find(p => p.id === loginsProjectId);
+  const list = document.getElementById('loginsList');
+  const logins = (proj && proj.logins) || [];
+  if (logins.length === 0) {
+    list.innerHTML = '<div class="text-xs text-slate-500 italic">No logins saved for this app yet.</div>';
+    return;
+  }
+  list.innerHTML = logins.map(l => {
+    const shown = revealedLogins.has(l.id);
+    return `
+      <div class="grid grid-cols-12 gap-2 items-center p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-xs">
+        <div class="col-span-12 sm:col-span-5 min-w-0 flex items-center gap-1.5">
+          <span class="font-mono text-slate-200 truncate" title="${escapeHtml(l.username)}">${escapeHtml(l.username)}</span>
+          <button onclick="copyLoginField('${l.id}', 'username')" title="Copy username" class="text-slate-500 hover:text-white p-0.5 flex-shrink-0"><i class="ph ph-copy text-sm"></i></button>
+        </div>
+        <div class="col-span-5 sm:col-span-3 min-w-0 text-slate-400 truncate" title="${escapeHtml(l.role)}">${escapeHtml(l.role || '-')}</div>
+        <div class="col-span-7 sm:col-span-4 min-w-0 flex items-center justify-end gap-1">
+          <span class="font-mono text-slate-200 truncate">${shown ? escapeHtml(l.password) : (l.password ? '••••••••' : '-')}</span>
+          <button onclick="toggleLoginReveal('${l.id}')" title="${shown ? 'Hide' : 'Show'} password" class="text-slate-500 hover:text-white p-0.5 flex-shrink-0"><i class="ph ${shown ? 'ph-eye-slash' : 'ph-eye'} text-sm"></i></button>
+          <button onclick="copyLoginField('${l.id}', 'password')" title="Copy password" class="text-slate-500 hover:text-white p-0.5 flex-shrink-0"><i class="ph ph-copy text-sm"></i></button>
+          <button onclick="deleteLogin('${l.id}')" title="Remove login" class="text-slate-500 hover:text-rose-400 p-0.5 flex-shrink-0"><i class="ph ph-trash text-sm"></i></button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function addLoginsFromPaste() {
+  const proj = projects.find(p => p.id === loginsProjectId);
+  if (!proj) return;
+  const lines = document.getElementById('loginsPasteInput').value
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(Boolean);
+  let password = document.getElementById('loginsPasswordInput').value.trim();
+
+  // A last line that is a single word and not an email is the shared password.
+  const last = lines[lines.length - 1];
+  if (last && !/\s/.test(last) && !last.includes('@')) {
+    lines.pop();
+    if (!password) password = last;
+  }
+  if (lines.length === 0) {
+    showToast("Paste at least one username");
+    return;
+  }
+
+  const stamp = Date.now();
+  const added = lines.map((line, i) => {
+    // Username and role are separated by a tab or 2+ spaces, else by the first space.
+    let [username, ...role] = line.split(/\t+|\s{2,}/);
+    if (role.length === 0) [username, ...role] = line.split(/\s+/);
+    return { id: `login_${stamp}_${i}`, username: username.trim(), role: role.join(' ').trim(), password };
+  });
+  proj.logins = [...(proj.logins || []), ...added];
+  saveData();
+  document.getElementById('loginsPasteInput').value = '';
+  document.getElementById('loginsPasswordInput').value = '';
+  renderLogins();
+  showToast(`Saved ${added.length} login${added.length === 1 ? '' : 's'} on this device`);
+}
+
+function toggleLoginReveal(loginId) {
+  if (revealedLogins.has(loginId)) revealedLogins.delete(loginId);
+  else revealedLogins.add(loginId);
+  renderLogins();
+}
+
+function copyLoginField(loginId, field) {
+  const proj = projects.find(p => p.id === loginsProjectId);
+  const login = proj && (proj.logins || []).find(l => l.id === loginId);
+  if (!login) return;
+  navigator.clipboard.writeText(login[field] || '')
+    .then(() => showToast(`${field === 'password' ? 'Password' : 'Username'} copied`))
+    .catch(() => showToast("Could not copy to clipboard"));
+}
+
+function deleteLogin(loginId) {
+  const proj = projects.find(p => p.id === loginsProjectId);
+  if (!proj) return;
+  proj.logins = (proj.logins || []).filter(l => l.id !== loginId);
+  saveData();
+  renderLogins();
+}
+
+/* ==========================================================================
+   14. Utilities & Toast System
    ========================================================================== */
 let toastTimer;
 function showToast(msg) {
@@ -1133,7 +1387,10 @@ function escapeHtml(str) {
 }
 
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Escape') {
+    closeModal();
+    if (loginsProjectId) closeLogins();
+  }
 });
 
 window.onload = function() {

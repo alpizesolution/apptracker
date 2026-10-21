@@ -110,6 +110,9 @@
           <button id="viewKanbanBtn" onclick="setViewMode('kanban')" title="Kanban Board View" class="p-1.5 rounded text-xs transition text-slate-400 hover:text-white">
             <i class="ph-bold ph-kanban text-base"></i>
           </button>
+          <button id="viewNotesBtn" onclick="setViewMode('notes')" title="Idea Sticky Notes" class="p-1.5 rounded text-xs transition text-slate-400 hover:text-white">
+            <i class="ph-bold ph-note text-base"></i>
+          </button>
         </div>
 
         <!-- Backup & Actions Menu -->
@@ -187,7 +190,7 @@
     </section>
 
     <!-- Filters, Search & Categories -->
-    <div class="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between mb-6 pb-4 border-b border-slate-800/60">
+    <div id="filterBar" class="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between mb-6 pb-4 border-b border-slate-800/60">
       
       <!-- Stage Filter Pills -->
       <div class="flex items-center gap-1.5 overflow-x-auto pb-2 md:pb-0" id="filterContainer">
@@ -223,6 +226,23 @@
 
     <div id="kanbanView" class="hidden overflow-x-auto pb-6">
       <div class="grid grid-cols-6 gap-3 min-w-[1100px]" id="kanbanColumnsContainer">
+        <!-- Injected by JS -->
+      </div>
+    </div>
+
+    <!-- Idea Sticky Notes -->
+    <div id="notesView" class="hidden">
+      <div class="mb-5 p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80">
+        <label for="notesPasteInput" class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Paste ideas (one per line)</label>
+        <textarea id="notesPasteInput" rows="3" placeholder="IPON CHECKLIST&#10;PAGIBIG LOAN TRACKER&#10;DORM APP" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500"></textarea>
+        <div class="mt-2 flex items-center justify-between gap-3">
+          <span class="text-[11px] text-slate-500">Each line becomes its own sticky note. Click a note to edit it.</span>
+          <button onclick="addNotesFromPaste()" class="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs sm:text-sm transition flex items-center gap-1.5 flex-shrink-0">
+            <i class="ph-bold ph-plus text-base"></i> Add Notes
+          </button>
+        </div>
+      </div>
+      <div id="notesGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
         <!-- Injected by JS -->
       </div>
     </div>
@@ -335,6 +355,42 @@
           <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs sm:text-sm transition shadow-lg shadow-indigo-600/25">Save Application</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Logins Modal -->
+  <div id="loginsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="ph-bold ph-key text-indigo-400"></i> <span id="loginsTitle">Logins</span>
+        </h3>
+        <button onclick="closeLogins()" class="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800 transition">
+          <i class="ph-bold ph-x text-lg"></i>
+        </button>
+      </div>
+      <div class="px-6 py-5 overflow-y-auto space-y-5">
+        <div class="text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 flex items-start gap-2">
+          <i class="ph-bold ph-lock-simple text-sm mt-0.5"></i>
+          <span>Logins are saved only in this browser on this device. They are never uploaded. They are included in JSON backups, so keep backup files private.</span>
+        </div>
+
+        <div id="loginsList" class="space-y-2">
+          <!-- Injected by JS -->
+        </div>
+
+        <div class="pt-4 border-t border-slate-800">
+          <label for="loginsPasteInput" class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Add logins (one per line: username, then role)</label>
+          <textarea id="loginsPasteInput" rows="4" placeholder="admin@myapp.local    Admin&#10;user@myapp.local    Student" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-200 placeholder-slate-600 font-mono focus:outline-none focus:border-indigo-500"></textarea>
+          <div class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <input type="text" id="loginsPasswordInput" autocomplete="off" placeholder="Password for these logins" class="sm:col-span-2 px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-200 placeholder-slate-600 font-mono focus:outline-none focus:border-indigo-500">
+            <button onclick="addLoginsFromPaste()" class="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs sm:text-sm transition flex items-center justify-center gap-1.5">
+              <i class="ph-bold ph-plus text-base"></i> Add Logins
+            </button>
+          </div>
+          <p class="mt-1.5 text-[11px] text-slate-500">If the password is on its own line at the end of what you paste, it is picked up automatically.</p>
+        </div>
+      </div>
     </div>
   </div>
 
