@@ -12,6 +12,15 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="light.css">
+  <script>
+    // Apply the saved theme before the page paints.
+    try {
+      if (localStorage.getItem('alpize_solution_theme') === 'light') {
+        document.documentElement.classList.replace('dark', 'light');
+      }
+    } catch (e) {}
+  </script>
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -100,6 +109,11 @@
         <button id="pwaInstallBtn" onclick="installPWA()" class="hidden px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs sm:text-sm transition shadow-lg shadow-emerald-600/25 flex items-center gap-1.5">
           <i class="ph-bold ph-download-simple text-base"></i>
           <span>Install PC App</span>
+        </button>
+
+        <!-- Theme Toggle -->
+        <button id="themeToggleBtn" onclick="toggleTheme()" title="Switch to light theme" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition text-sm flex items-center">
+          <i id="themeToggleIcon" class="ph-bold ph-sun text-lg"></i>
         </button>
 
         <!-- View Switcher -->
