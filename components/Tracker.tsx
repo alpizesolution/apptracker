@@ -19,6 +19,7 @@ import ProjectCard, { type CardActions } from './ProjectCard';
 import KanbanBoard from './KanbanBoard';
 import NotesView from './NotesView';
 import ProjectModal, { type ProjectDraft } from './ProjectModal';
+import ChecklistImportModal from './ChecklistImportModal';
 import LoginsModal from './LoginsModal';
 import ReposModal from './ReposModal';
 
@@ -79,6 +80,7 @@ export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled:
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Project | 'new' | null>(null);
   const [loginsFor, setLoginsFor] = useState<string | null>(null);
+  const [checklistFor, setChecklistFor] = useState<string | null>(null);
   const [reposOpen, setReposOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const online = useSyncExternalStore(subscribeOnline, isOnline, () => true);
@@ -113,6 +115,7 @@ export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled:
       if (e.key !== 'Escape') return;
       setEditing(null);
       setLoginsFor(null);
+      setChecklistFor(null);
       setReposOpen(false);
       setMenuOpen(false);
     };
@@ -171,7 +174,8 @@ export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled:
       updateProject(id, x => ({ ...x, liveUrl: url }));
       toast(`Live link added to "${p.name}"`);
     },
-    openLogins: id => setLoginsFor(id)
+    openLogins: id => setLoginsFor(id),
+    importChecklist: id => setChecklistFor(id)
   };
 
   const saveDraft = (draft: ProjectDraft) => {
@@ -293,6 +297,7 @@ export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled:
   const wip = projects.filter(p => ['Idea', 'Prototype', 'MVP'].includes(p.stage)).length;
   const paused = projects.filter(p => p.stage === 'Paused/Blocked').length;
   const loginsProject = loginsFor ? find(loginsFor) : undefined;
+  const checklistProject = checklistFor ? find(checklistFor) : undefined;
   const signedIn = Boolean(account);
   const syncLabel = { local: 'On this device', loading: 'Loading…', saving: 'Saving…', saved: 'Synced', error: 'Sync error', readonly: 'Read-only' }[status];
 
@@ -452,6 +457,21 @@ export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled:
           onClose={() => setLoginsFor(null)}
           onAdd={added => setLogins(l => ({ ...l, [loginsProject.id]: [...(l[loginsProject.id] || []), ...added.map(x => ({ ...x, id: newId('login') }) as Login)] }))}
           onDelete={id => setLogins(l => ({ ...l, [loginsProject.id]: (l[loginsProject.id] || []).filter(x => x.id !== id) }))}
+        />
+      )}
+
+      {checklistProject && (
+        <ChecklistImportModal
+          projectName={checklistProject.name}
+          existingCount={checklistProject.milestones.length}
+          toast={toast}
+          onClose={() => setChecklistFor(null)}
+          onImport={(items, replace) => {
+            const added = items.map(i => ({ ...i, id: newId('m') }));
+            updateProject(checklistProject.id, p => ({ ...p, milestones: replace ? added : [...p.milestones, ...added] }));
+            setChecklistFor(null);
+            toast(`${replace ? 'Checklist replaced with' : 'Added'} ${added.length} item${added.length === 1 ? '' : 's'}`);
+          }}
         />
       )}
 

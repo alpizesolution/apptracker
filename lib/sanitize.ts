@@ -171,3 +171,40 @@ export function parseLogins(pasted: string, password: string): { logins: Omit<Lo
   });
   return { logins, password: pw };
 }
+
+export const CHECKLIST_JSON_EXAMPLE = `{
+  "checklist": [
+    "Set up the database",
+    { "text": "Design the login page", "done": true },
+    { "text": "Deploy to Vercel", "done": false }
+  ]
+}`;
+
+const ITEM_TEXT_KEYS = ['text', 'title', 'task', 'name', 'item'];
+const ITEM_DONE_KEYS = ['done', 'completed', 'checked'];
+const LIST_KEYS = ['checklist', 'items', 'tasks', 'milestones'];
+
+// A checklist file is a list of items, or an object holding one under
+// "checklist" (or "items", "tasks", "milestones"). Each item is plain text or
+// { "text": "...", "done": true }. Returns the items, or an error to show.
+export function parseChecklistJson(raw: string): { items: Omit<Milestone, 'id'>[] } | { error: string } {
+  let data: unknown;
+  try {
+    data = JSON.parse(raw.replace(/^﻿/, ''));
+  } catch {
+    return { error: 'This is not valid JSON. Compare it with the example below.' };
+  }
+  const obj = record(data);
+  const list = Array.isArray(data) ? data : LIST_KEYS.map(k => obj[k]).find(Array.isArray);
+  if (!list) return { error: 'No list found. Put the items in a "checklist" list, like the example below.' };
+  const items: Omit<Milestone, 'id'>[] = [];
+  for (const entry of list) {
+    const item = record(entry);
+    const label = typeof entry === 'string' ? text(entry, 200) : text(ITEM_TEXT_KEYS.map(k => item[k]).find(v => typeof v === 'string'), 200);
+    if (!label) continue;
+    items.push({ text: label, completed: ITEM_DONE_KEYS.some(k => item[k] === true) });
+    if (items.length >= LIMITS.milestones) break;
+  }
+  if (items.length === 0) return { error: 'The list has no items with text.' };
+  return { items };
+}

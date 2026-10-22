@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import {
-  ArrowSquareOutIcon, CopyIcon, GithubLogoIcon, GlobeIcon, KeyIcon, LightningIcon, LockSimpleIcon, PencilSimpleIcon, TrashIcon
+  ArrowSquareOutIcon, BracketsCurlyIcon, CopyIcon, GithubLogoIcon, GlobeIcon, KeyIcon, LightningIcon, LockSimpleIcon, PencilSimpleIcon, TrashIcon
 } from '@phosphor-icons/react';
 import { STAGES, type Project, type Stage } from '@/lib/types';
 import { STAGE_CONFIG, calculateProgress } from '@/lib/stages';
@@ -19,6 +19,7 @@ export interface CardActions {
   removeMilestone: (id: string, milestoneId: string) => void;
   setLiveUrl: (id: string) => void;
   openLogins: (id: string) => void;
+  importChecklist: (id: string) => void;
 }
 
 // Links are re-checked at render time too, so nothing but http(s) ever reaches an href.
@@ -100,6 +101,7 @@ export default function ProjectCard({ project, loginCount, actions }: { project:
               value={item} maxLength={200} onChange={e => setItem(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addItem(); }}
             />
             <button className="btn btn-sm" onClick={addItem}>Add</button>
+            <button className="icon-btn" onClick={() => actions.importChecklist(project.id)} title="Import checklist from JSON" aria-label={`Import checklist for ${project.name} from JSON`}><BracketsCurlyIcon /></button>
           </div>
         </div>
 
