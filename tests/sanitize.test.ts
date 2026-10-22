@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractLogins, isBackup, parseIdeas, parseLogins, safeUrl, sanitizeBoard } from '../lib/sanitize.ts';
+import { CHECKLIST_JSON_EXAMPLE, extractLogins, isBackup, parseChecklistJson, parseIdeas, parseLogins, safeUrl, sanitizeBoard } from '../lib/sanitize.ts';
 import { findProjectForRepo, mergeRepo, projectFromRepo, summarizeRepo } from '../lib/github.ts';
 import { addTechValue, techSuggestions } from '../lib/tech.ts';
 
@@ -96,4 +96,28 @@ test('tech suggestions rank prefix matches first and skip ones already added', (
   const s = techSuggestions('framework', 'ne', ['Next.js'], []);
   assert.ok(!s.includes('Next.js'));
   assert.equal(s[0], 'NestJS');
+});
+
+test('parseChecklistJson reads the guide example and common shapes', () => {
+  assert.deepEqual(parseChecklistJson(CHECKLIST_JSON_EXAMPLE), { items: [
+    { text: 'Set up the database', completed: false },
+    { text: 'Design the login page', completed: true },
+    { text: 'Deploy to Vercel', completed: false }
+  ] });
+  assert.deepEqual(parseChecklistJson('["A", "  ", {"title": "B", "completed": true}, {"text": 5}, null]'), { items: [
+    { text: 'A', completed: false },
+    { text: 'B', completed: true }
+  ] });
+  assert.deepEqual(parseChecklistJson('{"tasks": [{"task": "C", "done": "yes"}]}'), { items: [{ text: 'C', completed: false }] });
+  const long = parseChecklistJson('{"checklist": ["' + 'x'.repeat(300) + '"]}');
+  assert.ok('items' in long && long.items[0].text.length === 200);
+  const many = parseChecklistJson(JSON.stringify(Array.from({ length: 500 }, (_, i) => `t${i}`)));
+  assert.ok('items' in many && many.items.length === 200);
+});
+
+test('parseChecklistJson explains bad files', () => {
+  assert.ok('error' in parseChecklistJson('{not json'));
+  assert.ok('error' in parseChecklistJson('{"name": "x"}'));
+  assert.ok('error' in parseChecklistJson('[]'));
+  assert.ok('error' in parseChecklistJson('"just text"'));
 });

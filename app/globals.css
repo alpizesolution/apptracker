@@ -513,3 +513,11 @@ html.dark .modal-head { border-bottom-color: #111; }
 .prose-page h1 { font-family: var(--font-display); font-weight: 800; font-size: 48px; letter-spacing: -0.03em; margin: 18px 0 8px; }
 .prose-page h2 { font-family: var(--font-display); font-weight: 800; font-size: 24px; margin: 28px 0 6px; }
 .prose-page li { margin-bottom: 6px; }
+
+/* Checklist JSON import */
+.json-guide { border: 2px dashed var(--line); border-radius: 14px; padding: 12px 14px; }
+.json-guide-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.json-guide h4 { margin: 0; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+.json-guide pre { margin: 0; padding: 10px 12px; border: 2px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); overflow-x: auto; white-space: pre; }
+.json-guide ul { margin: 10px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.json-guide code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }

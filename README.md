@@ -8,6 +8,7 @@ Built with Next.js (App Router) and Firebase (Authentication + Firestore), hoste
 
 - Card grid and Kanban board (drag cards between stages), with stage colors
 - Per-app checklist, progress bar, next step, tech stack, repo and live links
+- Import a checklist from a JSON file (the { } button under each checklist shows the format)
 - Tech stack fields (Framework, Frontend, Backend, Database, Hosting, Other tools) that suggest options as you type
 - Idea board: paste a list and each line becomes a sticky note; **Make app** turns a note into a card
 - Per-app logins (username, role, password), kept only in the browser
