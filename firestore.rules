@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// One board per signed-in user, at boards/{uid}. Each user can only read or
+// change their own document; everything else is closed.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /boards/{userId} {
+      allow read, delete: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['data', 'updatedAt'])
+        && request.resource.data.data is string
+        && request.resource.data.data.size() < 900000
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
