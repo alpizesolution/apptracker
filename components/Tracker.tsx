@@ -8,7 +8,7 @@ import {
   SquaresFourIcon, StackIcon, SunIcon, TrashIcon, UploadSimpleIcon, WarningCircleIcon, WifiSlashIcon, XIcon
 } from '@phosphor-icons/react';
 import { STAGES, type Board, type Login, type LoginsByProject, type Project, type RepoSummary, type Stage } from '@/lib/types';
-import { STAGE_CONFIG, newId } from '@/lib/stages';
+import { STAGE_CONFIG, calculateProgress, newId } from '@/lib/stages';
 import { allTech } from '@/lib/tech';
 import { extractLogins, isBackup, safeUrl, sanitizeBoard, sanitizeProject } from '@/lib/sanitize';
 import { findProjectForRepo, mergeRepo, projectFromRepo } from '@/lib/github';
@@ -24,12 +24,22 @@ import LoginsModal from './LoginsModal';
 import ReposModal from './ReposModal';
 
 type View = 'grid' | 'kanban' | 'notes';
+type FilterStage = Stage | 'all' | 'wip';
+type SortOption = 'default' | 'name' | 'progress-desc' | 'progress-asc' | 'stage' | 'updated';
+
+interface DialogConfig {
+  type: 'confirm' | 'prompt';
+  title: string;
+  message: string;
+  defaultValue?: string;
+  confirmLabel?: string;
+  confirmClass?: string;
+  resolve: (value: any) => void;
+}
+
 type BeforeInstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
 
 const ICONS = { weight: 'bold' as const, size: '1em' };
-
-const askToCopyLocal = (count: number) =>
-  window.confirm(`Copy the ${count} app${count === 1 ? '' : 's'} saved in this browser to your account?`);
 
 // Browser state read without effects, so the server render and first client render agree.
 function subscribeOnline(cb: () => void) {
@@ -72,11 +82,48 @@ function download(filename: string, data: unknown) {
 
 export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled: boolean; githubAppSlug: string }) {
   const { msg, show, toast } = useToast();
+  const [dialog, setDialog] = useState<DialogConfig | null>(null);
+
+  const confirm = useCallback((message: string, options?: { title?: string; confirmLabel?: string; confirmClass?: string }) => {
+    return new Promise<boolean>(resolve => {
+      setDialog({
+        type: 'confirm',
+        title: options?.title || 'Confirm',
+        message,
+        confirmLabel: options?.confirmLabel || 'Confirm',
+        confirmClass: options?.confirmClass || 'btn-pink',
+        resolve: val => { setDialog(null); resolve(Boolean(val)); }
+      });
+    });
+  }, []);
+
+  const prompt = useCallback((message: string, defaultValue = '', options?: { title?: string }) => {
+    return new Promise<string | null>(resolve => {
+      setDialog({
+        type: 'prompt',
+        title: options?.title || 'Enter value',
+        message,
+        defaultValue,
+        resolve: val => { setDialog(null); resolve(val ?? null); }
+      });
+    });
+  }, []);
+
+  const askToCopyLocal = useCallback((count: number) => {
+    return confirm(`Copy the ${count} app${count === 1 ? '' : 's'} saved in this browser to your account?`, {
+      title: 'Sync local apps',
+      confirmLabel: 'Copy to account',
+      confirmClass: 'btn-lime'
+    });
+  }, [confirm]);
+
   const { account, ready: authReady, signIn: startSignIn, signOut } = useAccount(cloudEnabled);
   const { board, setBoard, ready, status, deleteCloudBoard } = useBoard(account?.id || null, authReady, askToCopyLocal);
   const [logins, setLoginsState] = useState<LoginsByProject>(() => (typeof window === 'undefined' ? {} : loadLogins()));
   const [view, setView] = useState<View>('grid');
-  const [filter, setFilter] = useState<Stage | 'all'>('all');
+  const [filter, setFilter] = useState<FilterStage>('all');
+  const [techFilter, setTechFilter] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<SortOption>('default');
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Project | 'new' | null>(null);
   const [loginsFor, setLoginsFor] = useState<string | null>(null);
@@ -118,6 +165,7 @@ export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled:
       setChecklistFor(null);
       setReposOpen(false);
       setMenuOpen(false);
+      setDialog(null);
     };
     window.addEventListener('click', onClick);
     window.addEventListener('keydown', onKey);
@@ -142,12 +190,15 @@ export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled:
     duplicate: id => {
       const p = find(id);
       if (!p) return;
-      setBoard(b => ({ ...b, projects: [{ ...structuredClone(p), id: newId('proj'), name: `${p.name} (Copy)`, github: null }, ...b.projects] }));
+      const now = new Date().toISOString();
+      setBoard(b => ({ ...b, projects: [{ ...structuredClone(p), id: newId('proj'), name: `${p.name} (Copy)`, github: null, createdAt: now, updatedAt: now }, ...b.projects] }));
       toast(`Duplicated "${p.name}"`);
     },
-    remove: id => {
+    remove: async id => {
       const p = find(id);
-      if (!p || !window.confirm(`Delete "${p.name}" permanently?`)) return;
+      if (!p) return;
+      const ok = await confirm(`Delete "${p.name}" permanently?`, { title: 'Delete app', confirmLabel: 'Delete', confirmClass: 'btn-pink' });
+      if (!ok) return;
       setBoard(b => ({ ...b, projects: b.projects.filter(x => x.id !== id) }));
       setLogins(l => Object.fromEntries(Object.entries(l).filter(([k]) => k !== id)));
       toast(`Removed "${p.name}"`);
@@ -155,23 +206,32 @@ export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled:
     setStage: (id, stage) => {
       const p = find(id);
       if (!p || p.stage === stage) return;
-      updateProject(id, x => ({ ...x, stage }));
+      const now = new Date().toISOString();
+      updateProject(id, x => ({ ...x, stage, updatedAt: now }));
       toast(`Moved "${p.name}" to ${stage}`);
     },
-    toggleMilestone: (id, mId) => updateProject(id, p => ({ ...p, milestones: p.milestones.map(m => (m.id === mId ? { ...m, completed: !m.completed } : m)) })),
+    toggleMilestone: (id, mId) => {
+      const now = new Date().toISOString();
+      updateProject(id, p => ({ ...p, updatedAt: now, milestones: p.milestones.map(m => (m.id === mId ? { ...m, completed: !m.completed } : m)) }));
+    },
     addMilestone: (id, text) => {
-      updateProject(id, p => ({ ...p, milestones: [...p.milestones, { id: newId('m'), text: text.trim().slice(0, 200), completed: false }] }));
+      const now = new Date().toISOString();
+      updateProject(id, p => ({ ...p, updatedAt: now, milestones: [...p.milestones, { id: newId('m'), text: text.trim().slice(0, 200), completed: false }] }));
       toast('Task added');
     },
-    removeMilestone: (id, mId) => updateProject(id, p => ({ ...p, milestones: p.milestones.filter(m => m.id !== mId) })),
-    setLiveUrl: id => {
+    removeMilestone: (id, mId) => {
+      const now = new Date().toISOString();
+      updateProject(id, p => ({ ...p, updatedAt: now, milestones: p.milestones.filter(m => m.id !== mId) }));
+    },
+    setLiveUrl: async id => {
       const p = find(id);
       if (!p) return;
-      const raw = window.prompt(`Live website link for "${p.name}"`, 'https://');
+      const raw = await prompt(`Live website link for "${p.name}"`, 'https://', { title: 'Set live website' });
       if (!raw || raw.trim() === 'https://') return;
       const url = safeUrl(raw);
       if (!url) { toast('That is not a web address. Use one like https://myapp.com'); return; }
-      updateProject(id, x => ({ ...x, liveUrl: url }));
+      const now = new Date().toISOString();
+      updateProject(id, x => ({ ...x, liveUrl: url, updatedAt: now }));
       toast(`Live link added to "${p.name}"`);
     },
     openLogins: id => setLoginsFor(id),
@@ -179,11 +239,18 @@ export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled:
   };
 
   const saveDraft = (draft: ProjectDraft) => {
+    const now = new Date().toISOString();
     if (editing && editing !== 'new') {
-      updateProject(editing.id, p => sanitizeProject({ ...p, ...draft }));
+      updateProject(editing.id, p => sanitizeProject({ ...p, ...draft, updatedAt: now }));
       toast(`Saved changes to "${draft.name}"`);
     } else {
-      const project = sanitizeProject({ ...draft, id: newId('proj'), milestones: [{ id: newId('m'), text: 'Architecture design & scaffolding', completed: false }] });
+      const project = sanitizeProject({
+        ...draft,
+        id: newId('proj'),
+        createdAt: now,
+        updatedAt: now,
+        milestones: [{ id: newId('m'), text: 'Architecture design & scaffolding', completed: false }]
+      });
       setBoard(b => ({ ...b, projects: [project, ...b.projects] }));
       toast(`Created new app "${draft.name}"`);
     }
@@ -216,10 +283,12 @@ export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled:
     const note = notes.find(n => n.id === id);
     if (!note?.text.trim()) return;
     const [title, ...rest] = note.text.split(/\r?\n/);
+    const now = new Date().toISOString();
     setBoard(b => ({
       notes: b.notes.filter(n => n.id !== id),
       projects: [sanitizeProject({
         id: newId('proj'), name: title, desc: rest.join(' '), stage: 'Idea', nextAction: 'Define scope and main features',
+        createdAt: now, updatedAt: now,
         milestones: [{ id: newId('m'), text: 'Architecture design & scaffolding', completed: false }]
       }), ...b.projects]
     }));
@@ -227,41 +296,64 @@ export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled:
   };
 
   // Backups
-  const exportBoard = (withLogins: boolean) => {
-    if (withLogins && !window.confirm('This file will contain your app passwords in plain text. Keep it somewhere private. Continue?')) return;
+  const exportBoard = async (withLogins: boolean) => {
+    if (withLogins) {
+      const ok = await confirm('This file will contain your app passwords in plain text. Keep it somewhere private. Continue?', {
+        title: 'Export with logins',
+        confirmLabel: 'Export anyway',
+        confirmClass: 'btn-pink'
+      });
+      if (!ok) return;
+    }
     const stamp = new Date().toISOString().slice(0, 10);
     download(`alpize-tracker-backup-${stamp}${withLogins ? '-with-logins' : ''}.json`, withLogins ? { ...board, logins } : board);
     toast(withLogins ? 'Backup with logins downloaded' : 'Backup downloaded (logins left out)');
   };
 
-  const importBoard = (file: File) => {
-    file.text().then(textValue => {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(textValue);
-      } catch {
-        toast('That file is not a valid JSON backup');
-        return;
-      }
-      if (!isBackup(parsed)) { toast('Invalid backup file: no projects found'); return; }
-      const next: Board = sanitizeBoard(parsed);
-      if (!Array.isArray(parsed) && !Array.isArray((parsed as Board).notes)) next.notes = notes;
-      if ((projects.length || notes.length) && !window.confirm(`Replace your board with the ${next.projects.length} apps in this backup?`)) return;
-      const restored = extractLogins(parsed, next);
-      setBoard(() => next);
-      if (Object.keys(restored).length) setLogins(l => ({ ...l, ...restored }));
-      toast(`Restored ${next.projects.length} apps from the backup`);
-    });
+  const importBoard = async (file: File) => {
+    const textValue = await file.text();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(textValue);
+    } catch {
+      toast('That file is not a valid JSON backup');
+      return;
+    }
+    if (!isBackup(parsed)) { toast('Invalid backup file: no projects found'); return; }
+    const next: Board = sanitizeBoard(parsed);
+    if (!Array.isArray(parsed) && !Array.isArray((parsed as Board).notes)) next.notes = notes;
+    if (projects.length || notes.length) {
+      const ok = await confirm(`Replace your board with the ${next.projects.length} apps in this backup?`, {
+        title: 'Import backup',
+        confirmLabel: 'Replace board',
+        confirmClass: 'btn-pink'
+      });
+      if (!ok) return;
+    }
+    const restored = extractLogins(parsed, next);
+    setBoard(() => next);
+    if (Object.keys(restored).length) setLogins(l => ({ ...l, ...restored }));
+    toast(`Restored ${next.projects.length} apps from the backup`);
   };
 
-  const clearAll = () => {
-    if (!window.confirm('Delete all tracked apps? Export a backup first if you want to keep them.')) return;
+  const clearAll = async () => {
+    const ok = await confirm('Delete all tracked apps? Export a backup first if you want to keep them.', {
+      title: 'Clear all projects',
+      confirmLabel: 'Delete all apps',
+      confirmClass: 'btn-pink'
+    });
+    if (!ok) return;
     setBoard(b => ({ ...b, projects: [] }));
     toast('All projects cleared');
   };
 
   const deleteCloud = async () => {
-    if (!window.confirm('Delete your synced projects and notes from ALPIZE? This cannot be undone. Logins saved in this browser stay here.')) return;
+    const ok = await confirm('Delete your synced projects and notes from ALPIZE? This cannot be undone. Logins saved in this browser stay here.', {
+      title: 'Delete cloud data',
+      confirmLabel: 'Delete data',
+      confirmClass: 'btn-pink'
+    });
+    if (!ok) return;
     if (await deleteCloudBoard()) toast('Your cloud data was deleted');
     else toast('Could not delete your data. Try again.');
   };
@@ -289,10 +381,32 @@ export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled:
   // Filtering
   const q = search.trim().toLowerCase();
   const filtered = projects.filter(p => {
-    if (filter !== 'all' && p.stage !== filter) return false;
+    if (filter === 'wip') {
+      if (!['Idea', 'Prototype', 'MVP'].includes(p.stage)) return false;
+    } else if (filter !== 'all' && p.stage !== filter) {
+      return false;
+    }
+    if (techFilter && !allTech(p).some(t => t.value.toLowerCase() === techFilter.toLowerCase())) {
+      return false;
+    }
     if (!q) return true;
     return [p.name, p.desc, p.nextAction, p.platform].some(v => v.toLowerCase().includes(q)) || allTech(p).some(t => t.value.toLowerCase().includes(q));
   });
+
+  // Sorting
+  const sorted = [...filtered].sort((a, b) => {
+    if (sortBy === 'name') return a.name.localeCompare(b.name);
+    if (sortBy === 'progress-desc') return calculateProgress(b) - calculateProgress(a);
+    if (sortBy === 'progress-asc') return calculateProgress(a) - calculateProgress(b);
+    if (sortBy === 'stage') return STAGES.indexOf(a.stage) - STAGES.indexOf(b.stage);
+    if (sortBy === 'updated') {
+      const timeA = a.updatedAt || a.createdAt || a.github?.pushedAt || '';
+      const timeB = b.updatedAt || b.createdAt || b.github?.pushedAt || '';
+      return timeB.localeCompare(timeA);
+    }
+    return 0;
+  });
+
   const live = projects.filter(p => p.stage === 'Shipped/Live').length;
   const wip = projects.filter(p => ['Idea', 'Prototype', 'MVP'].includes(p.stage)).length;
   const paused = projects.filter(p => p.stage === 'Paused/Blocked').length;
@@ -381,10 +495,57 @@ export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled:
         </section>
 
         <section className="stats">
-          <div className="stat"><div className="stat-head"><span>Total apps</span><StackIcon /></div><div className="stat-num">{projects.length}</div><div className="stat-sub">Tracked portfolio</div></div>
-          <div className="stat yellow"><div className="stat-head"><span>In progress</span><HammerIcon /></div><div className="stat-num">{wip}</div><div className="stat-sub">Idea, Prototype &amp; MVP</div></div>
-          <div className="stat lime"><div className="stat-head"><span>Shipped &amp; live</span><RocketLaunchIcon /></div><div className="stat-num">{live}</div><div className="stat-sub">Production deployments</div></div>
-          <div className="stat pink"><div className="stat-head"><span>Blocked / paused</span><WarningCircleIcon /></div><div className="stat-num">{paused}</div><div className="stat-sub">Needs unblocking or review</div></div>
+          <div
+            className={`stat clickable${filter === 'all' && !techFilter ? ' active' : ''}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => { setFilter('all'); setTechFilter(null); }}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFilter('all'); setTechFilter(null); } }}
+            title="Show all apps"
+          >
+            <div className="stat-head"><span>Total apps</span><StackIcon /></div>
+            <div className="stat-num">{projects.length}</div>
+            <div className="stat-sub">Tracked portfolio</div>
+          </div>
+
+          <div
+            className={`stat yellow clickable${filter === 'wip' ? ' active' : ''}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => setFilter(prev => prev === 'wip' ? 'all' : 'wip')}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFilter(prev => prev === 'wip' ? 'all' : 'wip'); } }}
+            title="Filter by In progress (Idea, Prototype, MVP)"
+          >
+            <div className="stat-head"><span>In progress</span><HammerIcon /></div>
+            <div className="stat-num">{wip}</div>
+            <div className="stat-sub">Idea, Prototype &amp; MVP</div>
+          </div>
+
+          <div
+            className={`stat lime clickable${filter === 'Shipped/Live' ? ' active' : ''}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => setFilter(prev => prev === 'Shipped/Live' ? 'all' : 'Shipped/Live')}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFilter(prev => prev === 'Shipped/Live' ? 'all' : 'Shipped/Live'); } }}
+            title="Filter by Shipped & live"
+          >
+            <div className="stat-head"><span>Shipped &amp; live</span><RocketLaunchIcon /></div>
+            <div className="stat-num">{live}</div>
+            <div className="stat-sub">Production deployments</div>
+          </div>
+
+          <div
+            className={`stat pink clickable${filter === 'Paused/Blocked' ? ' active' : ''}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => setFilter(prev => prev === 'Paused/Blocked' ? 'all' : 'Paused/Blocked')}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFilter(prev => prev === 'Paused/Blocked' ? 'all' : 'Paused/Blocked'); } }}
+            title="Filter by Blocked / paused"
+          >
+            <div className="stat-head"><span>Blocked / paused</span><WarningCircleIcon /></div>
+            <div className="stat-num">{paused}</div>
+            <div className="stat-sub">Needs unblocking or review</div>
+          </div>
         </section>
 
         {view !== 'notes' && (
@@ -399,10 +560,32 @@ export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled:
             </div>
             <div className="filters">
               <span className="filters-label">Stage:</span>
-              <button onClick={() => setFilter('all')} className={`pill filter-btn${filter === 'all' ? ' active' : ''}`}>All</button>
+              <button onClick={() => setFilter('all')} className={`pill filter-btn${filter === 'all' && !techFilter ? ' active' : ''}`}>All</button>
+              <button onClick={() => setFilter(prev => prev === 'wip' ? 'all' : 'wip')} className={`pill filter-btn${filter === 'wip' ? ' active' : ''}`}>WIP 🔨</button>
               {STAGES.map(s => (
                 <button key={s} onClick={() => setFilter(s)} className={`pill filter-btn${filter === s ? ' active' : ''}`}>{STAGE_CONFIG[s].short} {STAGE_CONFIG[s].emoji}</button>
               ))}
+
+              {techFilter && (
+                <span className="pill filter-btn active tech-filter-active">
+                  Stack: {techFilter}
+                  <button className="icon-btn-inline" onClick={() => setTechFilter(null)} title="Clear stack filter" aria-label="Clear stack filter">&times;</button>
+                </span>
+              )}
+
+              <select
+                className="panel-select"
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value as SortOption)}
+                aria-label="Sort apps"
+              >
+                <option value="default">Sort: Default</option>
+                <option value="name">Sort: Name (A-Z)</option>
+                <option value="updated">Sort: Recently updated</option>
+                <option value="progress-desc">Sort: Progress (High to Low)</option>
+                <option value="progress-asc">Sort: Progress (Low to High)</option>
+                <option value="stage">Sort: Stage order</option>
+              </select>
             </div>
           </section>
         )}
@@ -429,19 +612,19 @@ export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled:
               {cloudEnabled && !signedIn && <button className="btn btn-lime" onClick={signIn}><SignInIcon /> Sign in with GitHub</button>}
             </div>
           </div>
-        ) : filtered.length === 0 ? (
+        ) : sorted.length === 0 ? (
           <div className="empty">
             <div className="big">🫥</div>
             <h3>No apps match</h3>
-            <p className="hint">Try another search or stage, or add a new app.</p>
+            <p className="hint">Try another search, stage, or stack filter, or add a new app.</p>
             <button className="btn btn-pink" onClick={() => setEditing('new')}><PlusIcon /> Add new app</button>
           </div>
         ) : view === 'grid' ? (
           <div className="grid">
-            {filtered.map(p => <ProjectCard key={p.id} project={p} loginCount={(logins[p.id] || []).length} actions={actions} />)}
+            {sorted.map(p => <ProjectCard key={p.id} project={p} loginCount={(logins[p.id] || []).length} actions={actions} onTechFilter={setTechFilter} />)}
           </div>
         ) : (
-          <KanbanBoard projects={filtered} actions={actions} />
+          <KanbanBoard projects={sorted} actions={actions} />
         )}
       </main>
 
@@ -468,7 +651,8 @@ export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled:
           onClose={() => setChecklistFor(null)}
           onImport={(items, replace) => {
             const added = items.map(i => ({ ...i, id: newId('m') }));
-            updateProject(checklistProject.id, p => ({ ...p, milestones: replace ? added : [...p.milestones, ...added] }));
+            const now = new Date().toISOString();
+            updateProject(checklistProject.id, p => ({ ...p, updatedAt: now, milestones: replace ? added : [...p.milestones, ...added] }));
             setChecklistFor(null);
             toast(`${replace ? 'Checklist replaced with' : 'Added'} ${added.length} item${added.length === 1 ? '' : 's'}`);
           }}
@@ -476,6 +660,48 @@ export default function Tracker({ cloudEnabled, githubAppSlug }: { cloudEnabled:
       )}
 
       {reposOpen && <ReposModal projects={projects} githubAppSlug={githubAppSlug} onImport={importRepos} onClose={() => setReposOpen(false)} />}
+
+      {dialog && (
+        <div className="overlay">
+          <div className="modal" role="dialog" aria-modal="true" style={{ maxWidth: 460 }}>
+            <div className="modal-head">
+              <h3>{dialog.title}</h3>
+              <button className="icon-btn" onClick={() => dialog.resolve(dialog.type === 'prompt' ? null : false)} title="Close"><XIcon /></button>
+            </div>
+            <form
+              onSubmit={e => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                if (dialog.type === 'prompt') {
+                  const input = form.elements.namedItem('dialogInput') as HTMLInputElement;
+                  dialog.resolve(input?.value ?? '');
+                } else {
+                  dialog.resolve(true);
+                }
+              }}
+              className="modal-body"
+            >
+              <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5 }}>{dialog.message}</p>
+              {dialog.type === 'prompt' && (
+                <input
+                  id="dialogInput"
+                  name="dialogInput"
+                  type="text"
+                  className="field"
+                  autoFocus
+                  defaultValue={dialog.defaultValue || ''}
+                />
+              )}
+              <div className="modal-foot">
+                <button type="button" className="btn" onClick={() => dialog.resolve(dialog.type === 'prompt' ? null : false)}>Cancel</button>
+                <button type="submit" className={`btn ${dialog.type === 'confirm' ? (dialog.confirmClass || 'btn-pink') : 'btn-lime'}`}>
+                  {dialog.type === 'confirm' ? (dialog.confirmLabel || 'Confirm') : 'Save'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <footer className="footer">
         <div className="wrap">

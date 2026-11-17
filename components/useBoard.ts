@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { deleteDoc, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import type { Board } from '@/lib/types';
 import { sanitizeBoard } from '@/lib/sanitize';
 import { loadCloudCopy, loadLocalBoard, saveCloudCopy, saveLocalBoard } from '@/lib/local-store';
@@ -22,7 +22,7 @@ function boardDoc(userId: string) {
 // firestore.rules) and saves a moment after each change. The board is stored
 // as one JSON string so its shape never trips Firestore's nested-array limits.
 // `onFirstSync` must be a stable function.
-export function useBoard(userId: string | null, authReady: boolean, onFirstSync: (localCount: number) => boolean) {
+export function useBoard(userId: string | null, authReady: boolean, onFirstSync: (localCount: number) => Promise<boolean> | boolean) {
   const [board, setBoardState] = useState<Board>(EMPTY);
   const [ready, setReady] = useState(false);
   const [status, setStatus] = useState<SyncStatus>('loading');
@@ -50,6 +50,7 @@ export function useBoard(userId: string | null, authReady: boolean, onFirstSync:
   useEffect(() => {
     if (!authReady) return;
     let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
     async function load() {
       writable.current = false;
       if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -84,7 +85,7 @@ export function useBoard(userId: string | null, authReady: boolean, onFirstSync:
       // First sign-in on this browser: offer to bring the signed-out board along.
       if (!exists) {
         const local = loadLocalBoard();
-        if ((local.projects.length || local.notes.length) && onFirstSync(local.projects.length)) {
+        if ((local.projects.length || local.notes.length) && (await onFirstSync(local.projects.length))) {
           next = local;
           await pushToCloud(next);
         }
@@ -93,9 +94,27 @@ export function useBoard(userId: string | null, authReady: boolean, onFirstSync:
       setBoardState(next);
       setStatus('saved');
       setReady(true);
+
+      // Attach a real-time listener so the board stays in sync across tabs and devices.
+      // Callers should set `createdAt` on new projects and `updatedAt` on updates.
+      unsubscribe = onSnapshot(ref, snap => {
+        if (cancelled || !writable.current) return;
+        // Skip snapshot updates while a save is in flight to avoid overwriting local edits.
+        if (pending.current !== null) return;
+        if (!snap.exists()) return;
+        try {
+          const freshRaw = JSON.parse(String(snap.get('data') || '{}'));
+          setBoardState(sanitizeBoard(freshRaw));
+        } catch {
+          // Malformed data — ignore and keep current state.
+        }
+      });
     }
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
   }, [userId, authReady, pushToCloud, onFirstSync]);
 
   // Save whatever is still waiting if the tab is closed mid-delay.

@@ -84,7 +84,9 @@ export function sanitizeProject(input: unknown, seen: Set<string> = new Set()): 
     milestones,
     github: isRepoFullName(fullName)
       ? { fullName, private: gh.private === true, pushedAt: text(gh.pushedAt, 40) || null }
-      : null
+      : null,
+    createdAt: text(p.createdAt, 30) || undefined,
+    updatedAt: text(p.updatedAt, 30) || undefined,
   };
 }
 

@@ -33,6 +33,8 @@ export interface Project {
   manualProgress: number | null;
   milestones: Milestone[];
   github: GithubLink | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Note {

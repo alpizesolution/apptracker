@@ -36,7 +36,12 @@ function pushedLabel(iso: string | null): string {
   return days <= 0 ? 'pushed today' : days === 1 ? 'pushed yesterday' : `pushed ${days}d ago`;
 }
 
-export default function ProjectCard({ project, loginCount, actions }: { project: Project; loginCount: number; actions: CardActions }) {
+export default function ProjectCard({ project, loginCount, actions, onTechFilter }: {
+  project: Project;
+  loginCount: number;
+  actions: CardActions;
+  onTechFilter?: (value: string) => void;
+}) {
   const [item, setItem] = useState('');
   const progress = calculateProgress(project);
   const stage = STAGE_CONFIG[project.stage];
@@ -108,7 +113,17 @@ export default function ProjectCard({ project, loginCount, actions }: { project:
         {tech.length > 0 && (
           <div className="stack">
             {tech.map(t => (
-              <span key={`${t.key}-${t.value}`} className={`chip tech-chip tech-${t.key}`} title={t.label}><small>{t.short}</small>{t.value}</span>
+              <span
+                key={`${t.key}-${t.value}`}
+                className={`chip tech-chip tech-${t.key}${onTechFilter ? ' clickable' : ''}`}
+                title={onTechFilter ? `Filter by ${t.value}` : t.label}
+                onClick={onTechFilter ? e => { e.stopPropagation(); onTechFilter(t.value); } : undefined}
+                role={onTechFilter ? 'button' : undefined}
+                tabIndex={onTechFilter ? 0 : undefined}
+                onKeyDown={onTechFilter ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTechFilter(t.value); } } : undefined}
+              >
+                <small>{t.short}</small>{t.value}
+              </span>
             ))}
           </div>
         )}

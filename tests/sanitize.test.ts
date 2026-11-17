@@ -83,6 +83,22 @@ test('GitHub repos become cards and sync without overwriting your edits', () => 
   assert.equal(card.github?.private, true);
   assert.equal(summarizeRepo({ full_name: '../evil' }), null);
 
+  // Backend language and topics classification test
+  const backendRepo = summarizeRepo({
+    full_name: 'alpize/api-server',
+    name: 'api-server',
+    description: 'Backend service',
+    html_url: 'https://github.com/alpize/api-server',
+    language: 'Python',
+    topics: ['Next.js', 'PostgreSQL', 'Stripe'],
+    pushed_at: '2026-10-20T00:00:00Z'
+  })!;
+  const backendCard = projectFromRepo(backendRepo);
+  assert.deepEqual(backendCard.tech.backend, ['Python']);
+  assert.deepEqual(backendCard.tech.framework, ['Next.js']);
+  assert.deepEqual(backendCard.tech.database, ['PostgreSQL']);
+  assert.deepEqual(backendCard.stack, ['Stripe']);
+
   const edited = { ...card, desc: 'My own tagline', github: null };
   assert.equal(findProjectForRepo([edited], repo)?.id, card.id);
   const merged = mergeRepo(edited, { ...repo, homepage: 'https://pest.app/' });
